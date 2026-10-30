@@ -156,7 +156,7 @@
       printOne() {
         YT.printPaper({
           title: this.question.kpName + "（" + this.question.year + " 年 第 " + this.question.indexNo + " 题）",
-          subtitle: this.question.subjectName + " · " + this.question.typeName + " · " + this.question.score + " 分 · 研题岛真题网",
+          subtitle: this.question.subjectName + " · " + this.question.typeName + " · " + this.question.score + " 分 · 研题岛 ATLAS",
           questions: [this.question],
           answers: true,
         });
@@ -187,7 +187,7 @@
                 <span class="tag tag-type" :class="'type-' + question.type">{{ question.typeName }}</span>
                 <span class="chip chip-orange">{{ question.year }} 年</span>
                 <span class="diff" :class="'diff-' + question.difficulty">{{ question.difficultyName }}</span>
-                <span class="tag" style="background:#faf6ee;color:#8a8175">{{ question.score }} 分</span>
+                <span class="tag" style="background:var(--paper);color:var(--muted)">{{ question.score }} 分</span>
                 <span class="crumb"><Icon name="book" :size="12" /> {{ question.subjectName }}</span>
               </div>
 
@@ -226,7 +226,7 @@
 
               <div class="q-stem" v-if="!imageUrl" v-html="fmt(question.stem)"></div>
 
-              <div class="q-options compact" v-if="imageUrl && question.options && question.options.length">
+              <div class="q-options compact" v-if="imageUrl && isChoice && question.options && question.options.length">
                 <button v-for="(opt, i) in question.options" :key="'s' + i" class="q-option"
                   :class="{
                     selected: selected === i && !revealed,
@@ -238,7 +238,7 @@
                 </button>
               </div>
 
-              <div class="q-options" v-if="!imageUrl && question.options && question.options.length">
+              <div class="q-options" v-if="!imageUrl && isChoice && question.options && question.options.length">
                 <button v-for="(opt, i) in question.options" :key="i" class="q-option"
                   :class="{
                     selected: selected === i && !revealed,
@@ -282,7 +282,7 @@
                 <span v-if="isChoice && revealed" :style="{ color: isRight ? '#0f7a38' : '#e0483a' }">
                   {{ isRight ? '回答正确，继续保持' : '回答错误，已放入错题本，记得回刷' }}
                 </span>
-                <span v-else>做完记得标记掌握程度，学习报告会更准确</span>
+                <span v-else>做完记得标记掌握程度，学习档案会更准确</span>
                 <button class="btn btn-soft btn-sm" v-if="isChoice && revealed" @click="toggleWrong">
                   <Icon name="flag" :size="14" /> {{ S.wrong.indexOf(question.id) >= 0 ? '移出错题本' : '加入错题本' }}
                 </button>
@@ -302,7 +302,7 @@
             </div>
 
             <section class="comments-card card">
-              <h3><Icon name="edit" :size="16" /> 研友讨论 <span style="font-weight:500;font-size:11px;color:#b3a998">（{{ comments.length }}）</span></h3>
+              <h3><Icon name="edit" :size="16" /> 研友讨论 <span style="font-weight:500;font-size:11px;color:var(--faint)">（{{ comments.length }}）</span></h3>
               <div class="comment-input-row">
                 <span class="comment-avatar">{{ initial }}</span>
                 <div style="flex:1;min-width:0">

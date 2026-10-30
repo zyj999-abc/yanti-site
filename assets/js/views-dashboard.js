@@ -6,10 +6,10 @@
   const S = YT.S;
 
   const TYPE_META = {
-    choice: { name: "选择题", color: "#f97316" },
-    blank: { name: "填空题", color: "#8b5cf6" },
-    solution: { name: "解答题", color: "#2f6bff" },
-    proof: { name: "证明题", color: "#16a34a" },
+    choice: { name: "选择题", color: "#bf6741" },
+    blank: { name: "填空题", color: "#747b95" },
+    solution: { name: "解答题", color: "#537c8d" },
+    proof: { name: "证明题", color: "#5f8c70" },
   };
 
   YT.components.KpNode = {
@@ -53,7 +53,7 @@
   };
 
   YT.components.LineChart = {
-    props: { series: Array, color: { type: String, default: "#f97316" } },
+    props: { series: Array, color: { type: String, default: "#bf6741" } },
     data() {
       return { width: 760, height: 224, hover: -1 };
     },
@@ -197,7 +197,7 @@
     template: `
     <div class="donut">
       <svg viewBox="0 0 92 92" class="donut-svg">
-        <circle cx="46" cy="46" :r="radius" fill="none" stroke="#f1ece3" stroke-width="10" />
+        <circle cx="46" cy="46" :r="radius" fill="none" stroke="#deded2" stroke-width="10" />
         <circle v-for="(a, i) in arcs" :key="i" cx="46" cy="46" :r="radius" fill="none" :stroke="a.color" stroke-width="10"
           :stroke-dasharray="a.dash + ' ' + a.gap" :stroke-dashoffset="a.offset" transform="rotate(-90 46 46)" stroke-linecap="butt" />
         <text x="46" y="43" text-anchor="middle" class="donut-num">{{ total }}</text>
@@ -387,7 +387,7 @@
         this.startOpen = false;
         S.lastSubject = this.subject.id;
         U.startPractice(ids, {
-          title: this.selectedNode.name + " · 组合刷题",
+          title: this.selectedNode.name + " · 组合练习",
           subject: this.subject.id,
           subjectName: this.subject.name,
           mode: "kp",
@@ -405,13 +405,13 @@
       <div class="container">
         <div class="page-head">
           <div class="page-head-left">
-            <div class="crumb"><a href="#/" @click.prevent="go('/')">首页</a><span>/</span><span>{{ group.name }}</span><span>/</span><b>考点汇总</b></div>
-            <h1>{{ subject.name }} · 考点汇总</h1>
+            <div class="crumb"><a href="#/" @click.prevent="go('/')">首页</a><span>/</span><span>{{ group.name }}</span><span>/</span><b>考点地图</b></div>
+            <h1>{{ subject.name }} · 考点地图</h1>
             <p>按考点归类 {{ qAll.length }} 道真题 · 覆盖 {{ years.length }} 个年份</p>
           </div>
           <div class="page-head-actions">
             <button class="btn btn-ghost" @click="goPapers"><Icon name="calendar" :size="16" /> 年份试卷</button>
-            <button class="btn btn-primary" @click="openStart"><Icon name="spark" :size="16" /> 组合刷题</button>
+            <button class="btn btn-primary" @click="openStart"><Icon name="spark" :size="16" /> 组合练习</button>
           </div>
         </div>
 
@@ -448,7 +448,7 @@
               </a>
               <a class="side-link" href="#/profile" @click.prevent="go('/profile')">
                 <span class="side-link-icon"><Icon name="chart" :size="17" /></span>
-                <span><b>学习报告</b><em>练习与掌握情况</em></span>
+                <span><b>学习档案</b><em>练习与掌握情况</em></span>
               </a>
               <div class="exam-countdown">
                 <span class="countdown-label">距离 27 考研</span>
@@ -467,7 +467,7 @@
                 </div>
                 <div class="kp-hero-actions">
                   <span class="kp-total">共 <b>{{ nodeQuestions.length }}</b> 题</span>
-                  <button class="btn btn-soft" @click="openStart"><Icon name="spark" :size="15" /> 组合刷题</button>
+                  <button class="btn btn-soft" @click="openStart"><Icon name="spark" :size="15" /> 组合练习</button>
                 </div>
               </div>
 
@@ -509,7 +509,7 @@
                 <div><h3>历年考察频率分布</h3><p>该考点在 {{ years[0] }}–{{ years[years.length - 1] }} 年间每年出现的题目数量</p></div>
                 <span class="legend-dot"><i></i>{{ selectedNode.name }}</span>
               </div>
-              <LineChart :series="yearSeries" color="#f97316" />
+              <LineChart :series="yearSeries" color="#bf6741" />
             </div>
 
             <div class="q-section">
@@ -519,7 +519,7 @@
                     {{ t.name }}<i>{{ t.count }}</i>
                   </button>
                 </div>
-                <button class="btn btn-primary q-start" @click="openStart"><Icon name="play" :size="15" /> 组合刷题</button>
+                <button class="btn btn-primary q-start" @click="openStart"><Icon name="play" :size="15" /> 组合练习</button>
               </div>
               <div class="q-list-head">
                 <span>题目列表</span>
@@ -565,7 +565,7 @@
       <div class="modal-mask" v-if="startOpen" @click.self="startOpen = false">
         <div class="modal card">
           <div class="modal-head">
-            <div><span class="modal-eyebrow">组合刷题</span><h3>{{ selectedNode.name }}</h3></div>
+            <div><span class="modal-eyebrow">组合练习</span><h3>{{ selectedNode.name }}</h3></div>
             <button class="icon-btn" @click="startOpen = false"><Icon name="x" :size="17" /></button>
           </div>
           <div class="field">

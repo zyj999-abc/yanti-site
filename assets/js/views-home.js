@@ -1,4 +1,4 @@
-/* Home */
+/* Home — ATLAS overview */
 (function () {
   const YT = window.YT;
   const U = YT.util;
@@ -6,25 +6,86 @@
 
   YT.components.HomeView = {
     data() {
-      return { D: D, S: YT.S };
+      return { D: D, S: YT.S, U: U };
     },
     computed: {
+      studyYear() {
+        const now = new Date();
+        return now.getMonth() >= 2 ? now.getFullYear() + 1 : now.getFullYear();
+      },
       cards() {
         const conf = [
-          { group: "math", subject: "math1", icon: "chart", color: "orange", title: "数学", tag: "高数 · 线代 · 概率" },
-          { group: "cs", subject: "cs408", icon: "grid", color: "purple", title: "408", tag: "数据结构 · 计组 · OS · 计网" },
-          { group: "en", subject: "english1", icon: "book", color: "blue", title: "英语", tag: "英语一 · 英语二" },
+          {
+            group: "math",
+            subject: "math1",
+            code: "01",
+            title: "数学",
+            en: "MATHEMATICS",
+            desc: "高等数学 · 线性代数 · 概率统计",
+            tone: "clay",
+          },
+          {
+            group: "cs",
+            subject: "cs408",
+            code: "02",
+            title: "408",
+            en: "COMPUTER SCIENCE",
+            desc: "数据结构 · 计算机组成 · 操作系统 · 计算机网络",
+            tone: "sage",
+          },
+          {
+            group: "en",
+            subject: "english1",
+            code: "03",
+            title: "英语",
+            en: "ENGLISH",
+            desc: "完形 · 阅读 · 新题型 · 翻译 · 写作",
+            tone: "slate",
+          },
         ];
         return conf.map((c) => {
-          const subj = U.subjectOf(c.subject);
-          const count = D.groups[c.group].subjects.reduce((n, id) => n + U.questionsOf(id).length, 0);
+          const group = D.groups[c.group];
+          let qs = [];
+          group.subjects.forEach((id) => {
+            qs = qs.concat(U.questionsOf(id));
+          });
+          const kpSet = {};
+          qs.forEach((q) => (kpSet[q.kpId] = true));
+          const marked = qs.filter((q) => YT.S.mastery[q.id]).length;
+          const years = qs.map((q) => q.year);
           return Object.assign({}, c, {
-            desc: subj.desc,
-            features: subj.features,
+            count: qs.length,
+            kp: Object.keys(kpSet).length,
+            coverage: qs.length ? Math.round((marked / qs.length) * 100) : 0,
+            range: years.length ? Math.min.apply(null, years) + "—" + Math.max.apply(null, years) : "—",
             path: "/dashboard/" + c.subject,
-            count: count,
           });
         });
+      },
+      currentSubject() {
+        return U.subjectOf(YT.S.lastSubject) || U.subjectOf("math1");
+      },
+      currentEn() {
+        const map = {
+          math1: "MATHEMATICS I",
+          math2: "MATHEMATICS II",
+          math3: "MATHEMATICS III",
+          cs408: "COMPUTER SCIENCE 408",
+          english1: "ENGLISH I",
+          english2: "ENGLISH II",
+        };
+        return map[this.currentSubject.id] || "SUBJECT";
+      },
+      currentCode() {
+        const map = {
+          math1: "M · 01",
+          math2: "M · 02",
+          math3: "M · 03",
+          cs408: "CS · 408",
+          english1: "E · 01",
+          english2: "E · 02",
+        };
+        return map[this.currentSubject.id] || "A · 00";
       },
       questionCount() {
         return D.questions.length;
@@ -32,95 +93,226 @@
       kpCount() {
         return new Set(D.questions.map((q) => q.kpId)).size;
       },
-      latestYears() {
-        const ys = D.questions.map((q) => q.year);
-        const max = Math.max.apply(null, ys);
-        return max;
+      latestYear() {
+        return Math.max.apply(null, D.questions.map((q) => q.year));
+      },
+      markedCount() {
+        return Object.keys(YT.S.mastery).length;
+      },
+      lastPractice() {
+        return YT.S.practice[0] || null;
+      },
+      lastPracticeTime() {
+        return this.lastPractice ? U.relTime(this.lastPractice.at) : "";
+      },
+      yearBands() {
+        const qs = U.questionsOf(this.currentSubject.id);
+        const counts = {};
+        const scores = {};
+        qs.forEach((q) => {
+          counts[q.year] = (counts[q.year] || 0) + 1;
+          scores[q.year] = (scores[q.year] || 0) + (q.score || 0);
+        });
+        return U.yearsOf(this.currentSubject.id)
+          .slice(-4)
+          .reverse()
+          .map((y, i) => ({ year: y, count: counts[y] || 0, score: scores[y] || 0, index: String(i + 1).padStart(2, "0") }));
+      },
+      archiveTotal() {
+        return U.questionsOf(this.currentSubject.id).length;
       },
     },
     methods: {
       go: U.go,
+      resume() {
+        const queue = U.readQueue();
+        if (queue && queue.ids && queue.ids.length) {
+          U.go("/practice");
+          return;
+        }
+        this.warmup();
+      },
+      warmup() {
+        const qs = U.questionsOf(this.currentSubject.id);
+        if (!qs.length) return;
+        const picked = U.shuffle(qs).slice(0, Math.min(10, qs.length));
+        U.startPractice(
+          picked.map((q) => q.id),
+          {
+            title: "随机热身 · " + this.currentSubject.name,
+            subject: this.currentSubject.id,
+            subjectName: this.currentSubject.name,
+            mode: "warmup",
+          }
+        );
+      },
+      openYears() {
+        this.go("/papers/" + this.currentSubject.id);
+      },
+      openYear(y) {
+        this.go("/papers/" + this.currentSubject.id + "?year=" + y);
+      },
     },
     template: `
-    <main class="home">
-      <div class="hero-deco" aria-hidden="true" v-math>
-        <svg class="deco-curve deco-curve-a" viewBox="0 0 420 260" fill="none">
-          <path d="M8 230C96 230 86 46 180 46c88 0 58 152 150 152 48 0 70-36 82-74" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
-          <circle cx="180" cy="46" r="5" fill="currentColor"/>
-          <path d="M8 230h404" stroke="currentColor" stroke-width="1" stroke-dasharray="3 7" opacity=".5"/>
-        </svg>
-        <svg class="deco-curve deco-curve-b" viewBox="0 0 320 220" fill="none">
-          <path d="M6 190c54-4 60-70 108-70 52 0 52 62 98 62 44 0 58-44 102-44" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
-          <path d="M6 12v192h308" stroke="currentColor" stroke-width="1.4" opacity=".5"/>
-        </svg>
-        <div class="formula-chip chip-a">$\\lim\\limits_{x\\to 0}\\dfrac{\\sin x}{x}=1$</div>
-        <div class="formula-chip chip-b">$\\displaystyle\\int_0^1 x^2\\,dx=\\dfrac{1}{3}$</div>
-        <div class="formula-chip chip-c"><span class="chip-tag">408</span><span>TCP · Cache · 二叉树</span></div>
-        <div class="formula-chip chip-d"><span class="chip-tag blue">EN</span><span>Reading · Cloze</span></div>
-        <div class="deco-square sq-a"></div>
-        <div class="deco-square sq-b"></div>
-        <div class="deco-square sq-c"></div>
-      </div>
-
-      <div class="container home-inner">
-        <div class="hero-eyebrow"><span class="pulse-dot"></span>2027 考研 · 真题按考点刷</div>
-        <div class="hero-brand">
-          <img src="assets/img/logo.svg" alt="研题岛" class="hero-logo" />
-          <h1>研题岛<span>真题网</span></h1>
-        </div>
-        <p class="hero-slogan">把历年真题，拆成一张可执行的复习地图</p>
-        <p class="hero-sub">按考点归类 · 看考察频率 · 组合刷题 · 自动沉淀错题</p>
-        <div class="hero-metrics">
-          <div><b>{{ D.subjects.length }}</b><span>个科目</span></div>
-          <i></i>
-          <div><b>{{ questionCount }}</b><span>道示例真题</span></div>
-          <i></i>
-          <div><b>{{ kpCount }}</b><span>个考点</span></div>
-          <i></i>
-          <div><b>{{ latestYears }}</b><span>最新年份</span></div>
+    <main class="home atlas-home">
+      <section class="home-hero container">
+        <div class="hero-copy">
+          <div class="hero-kicker">
+            <span class="kicker-dot"></span>
+            <span>{{ studyYear }} 考研 · 学习地图系统</span>
+            <em>ED. 01</em>
+          </div>
+          <h1>把真题，<br />变成你的<span class="hero-mark">地形图</span><i>。</i></h1>
+          <p class="hero-lead">按考点给每道题一个坐标。看清重点、盲区和自己的位置，再决定下一步往哪走。</p>
+          <div class="hero-actions">
+            <button class="btn btn-primary btn-lg" @click="go('/dashboard/' + currentSubject.id)">
+              进入考点地图 <Icon name="arrow-right" :size="17" />
+            </button>
+            <button class="btn btn-ghost btn-lg" @click="go('/import')">
+              <Icon name="upload" :size="16" /> 导入我的 PDF
+            </button>
+          </div>
+          <div class="hero-metrics">
+            <div><b>{{ questionCount }}</b><span>道示例题</span></div>
+            <i></i>
+            <div><b>{{ kpCount }}</b><span>个考点</span></div>
+            <i></i>
+            <div><b>{{ D.subjects.length }}</b><span>个科目</span></div>
+            <i></i>
+            <div><b>{{ latestYear }}</b><span>最新年份</span></div>
+          </div>
         </div>
 
-        <div class="subject-cards">
-          <a v-for="card in cards" :key="card.group" class="subject-card" :class="'theme-' + card.color" :href="'#' + card.path" @click.prevent="go(card.path)">
-            <div class="subject-card-head">
-              <span class="subject-icon"><Icon :name="card.icon" :size="24" /></span>
-              <div class="subject-head-text">
-                <div class="subject-title-row"><h2>{{ card.title }}</h2><span class="free-badge">免费</span></div>
-                <p>{{ card.tag }}</p>
-              </div>
-              <span class="subject-arrow"><Icon name="chev-right" :size="18" /></span>
+        <aside class="position-card">
+          <div class="pos-top">
+            <span>POSITION / 当前坐标</span>
+            <span class="pos-live"><i></i>LOCAL</span>
+          </div>
+          <div class="pos-subject">
+            <span class="pos-code">{{ currentCode }}</span>
+            <div>
+              <span class="pos-en">{{ currentEn }}</span>
+              <h2>{{ currentSubject.name }}</h2>
             </div>
-            <div class="subject-card-body">
-              <p class="subject-desc">{{ card.desc }}</p>
-              <ul class="feature-list">
-                <li v-for="f in card.features" :key="f"><span class="feature-dot"></span>{{ f }}</li>
-              </ul>
-              <div class="subject-card-foot">
-                <span class="subject-count">已收录 <b>{{ card.count }}</b> 道</span>
-                <span class="subject-enter">进入题库 <Icon name="arrow-right" :size="16" /></span>
-              </div>
+          </div>
+          <div class="pos-map" aria-hidden="true">
+            <svg viewBox="0 0 460 190" fill="none">
+              <g stroke="#d9ff59" stroke-width="1">
+                <path d="M-20 150c40-33 64-6 104-28 38-20 40-69 85-69 47 0 58 56 103 56 42 0 56-38 103-38 34 0 59 20 99 3" opacity=".18"/>
+                <path d="M-30 168c46-30 72-2 111-24 37-21 39-64 82-64 45 0 61 51 106 51 43 0 56-35 103-35 32 0 57 16 101 0" opacity=".12"/>
+                <path d="M-18 132c37-31 56 3 96-20 34-20 35-55 78-55 42 0 53 43 97 43 45 0 54-29 98-29 36 0 59 14 101-5" opacity=".08"/>
+              </g>
+              <path d="M356 38h26M369 25v26" stroke="#d9ff59" stroke-width="1" opacity=".32"/>
+              <path d="M40 156h46" stroke="#d9ff59" stroke-width="1" opacity=".22"/>
+              <path d="M40 151v10M63 151v10M86 151v10" stroke="#d9ff59" stroke-width="1" opacity=".18"/>
+            </svg>
+            <span class="pos-marker"><i></i></span>
+            <span class="pos-coord pos-coord-a">E 121°28′</span>
+            <span class="pos-coord pos-coord-b">N 31°14′</span>
+          </div>
+          <div class="pos-stats">
+            <div><b>{{ markedCount }}</b><span>已标记</span></div>
+            <div><b>{{ S.wrong.length }}</b><span>错题</span></div>
+            <div><b>{{ S.favorites.length }}</b><span>收藏</span></div>
+          </div>
+          <button class="pos-foot" @click="resume">
+            <span class="pos-foot-text">
+              <b v-if="lastPractice">上次 · {{ lastPractice.title }}</b>
+              <b v-else>还没有练习记录</b>
+              <em v-if="lastPractice">{{ lastPractice.accuracy }}% 正确率 · {{ lastPracticeTime }}</em>
+              <em v-else>从 10 道随机题开始，建立第一条轨迹</em>
+            </span>
+            <span class="pos-foot-go"><Icon name="arrow-right" :size="17" /></span>
+          </button>
+        </aside>
+      </section>
+
+      <section class="home-section container">
+        <header class="section-head">
+          <div class="section-title">
+            <span class="section-kicker">01 / TERRAIN</span>
+            <h2>选择你的地形</h2>
+          </div>
+          <p class="section-note">三套知识系统，按考点密度重新组织。<br />从最想攻克的一块开始。</p>
+        </header>
+
+        <div class="terrain-list">
+          <a v-for="card in cards" :key="card.group" class="terrain-row" :class="'tone-' + card.tone" :href="'#' + card.path" @click.prevent="go(card.path)">
+            <span class="terrain-index">{{ card.code }}</span>
+            <div class="terrain-name">
+              <h3>{{ card.title }}</h3>
+              <em>{{ card.en }}</em>
             </div>
+            <p class="terrain-desc">{{ card.desc }}</p>
+            <div class="terrain-count">
+              <b>{{ card.count }}</b>
+              <span>题 · {{ card.kp }} 个考点</span>
+            </div>
+            <div class="terrain-progress">
+              <div><span :style="{ width: card.coverage + '%' }"></span></div>
+              <small>{{ card.coverage }}% 已标记 <i>·</i> {{ card.range }}</small>
+            </div>
+            <span class="terrain-go"><Icon name="arrow-right" :size="19" /></span>
           </a>
         </div>
+      </section>
 
-        <div class="home-trust card">
-          <div class="trust-item">
-            <span class="trust-icon"><Icon name="zap" :size="18" /></span>
-            <div><b>无需注册</b><span>打开即刷，学习进度自动保存</span></div>
+      <section class="home-section container home-lower">
+        <div class="year-archive">
+          <header class="section-head section-head-sm">
+            <div class="section-title">
+              <span class="section-kicker">02 / ARCHIVE</span>
+              <h2>年份档案</h2>
+            </div>
+            <button class="section-link" @click="openYears">全部年份 <Icon name="arrow-right" :size="14" /></button>
+          </header>
+          <div class="year-bands">
+            <a v-for="band in yearBands" :key="band.year" class="year-band" href="#" @click.prevent="openYear(band.year)">
+              <span class="year-index">{{ band.index }}</span>
+              <span class="year-year">{{ band.year }}</span>
+              <span class="year-info">{{ band.count }} 题 · {{ band.score }} 分</span>
+              <span class="year-go"><Icon name="chev-right" :size="16" /></span>
+            </a>
           </div>
-          <div class="trust-item">
-            <span class="trust-icon"><Icon name="bookmark" :size="18" /></span>
-            <div><b>数据在本地</b><span>错题 / 收藏 / 笔记只存你的浏览器</span></div>
-          </div>
-          <div class="trust-item">
-            <span class="trust-icon"><Icon name="layers" :size="18" /></span>
-            <div><b>纯静态部署</b><span>可直接托管到 GitHub Pages</span></div>
-          </div>
-          <button class="btn btn-primary trust-cta" @click="go('/dashboard/math1')">开始刷题 <Icon name="arrow-right" :size="16" /></button>
+          <p class="archive-note"><span></span>当前归档：{{ currentSubject.name }} · 共 {{ archiveTotal }} 题 · {{ yearBands.length }} 个年份</p>
         </div>
 
-        <p class="home-demo-note"><Icon name="info" :size="14" /> 演示站题目为原创示例内容，用于展示考点统计、刷题、组卷与错题本的完整流程。</p>
-      </div>
+        <aside class="workbench">
+          <header class="workbench-head">
+            <span class="section-kicker">03 / WORKBENCH</span>
+            <h2>操作台</h2>
+            <p>把今天要做的动作，压到一次点击。</p>
+          </header>
+          <div class="work-list">
+            <button class="work-row" @click="go('/import')">
+              <span class="work-icon"><Icon name="upload" :size="17" /></span>
+              <span class="work-text"><b>导入 PDF</b><em>浏览器内拆题、标注题型</em></span>
+              <span class="work-tag">LOCAL</span>
+              <Icon name="arrow-right" :size="15" />
+            </button>
+            <button class="work-row" @click="go('/assembly')">
+              <span class="work-icon"><Icon name="layers" :size="17" /></span>
+              <span class="work-text"><b>智能组卷</b><em>按最新卷型与难度生成</em></span>
+              <span class="work-tag">AUTO</span>
+              <Icon name="arrow-right" :size="15" />
+            </button>
+            <button class="work-row" @click="warmup">
+              <span class="work-icon"><Icon name="zap" :size="17" /></span>
+              <span class="work-text"><b>随机热身</b><em>从当前科目抽 10 道题</em></span>
+              <span class="work-tag">10 Q</span>
+              <Icon name="arrow-right" :size="15" />
+            </button>
+            <button class="work-row" @click="go('/wrong-book')">
+              <span class="work-icon"><Icon name="flag" :size="17" /></span>
+              <span class="work-text"><b>错题回看</b><em>重做、标记、写笔记</em></span>
+              <span class="work-tag">{{ S.wrong.length }} ERR</span>
+              <Icon name="arrow-right" :size="15" />
+            </button>
+          </div>
+        </aside>
+      </section>
+
+      <p class="home-footnote container"><span>ATLAS NOTE</span> 站内题目为原创示例内容，用于展示考点统计、刷题、PDF 拆题与组卷流程。所有学习数据只保存在当前浏览器。</p>
     </main>`,
   };
 })();

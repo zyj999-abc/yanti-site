@@ -104,7 +104,7 @@
       printPaper() {
         YT.printPaper({
           title: this.subject.name + " · " + this.selectedYear + " 年真题（示例）",
-          subtitle: "研题岛真题网 · 共 " + this.yearQuestions.length + " 题 · 满分 " + this.totalScore + " 分",
+          subtitle: "研题岛 ATLAS · 共 " + this.yearQuestions.length + " 题 · 满分 " + this.totalScore + " 分",
           questions: this.yearQuestions,
           answers: false,
         });
@@ -121,7 +121,7 @@
         <div class="page-head">
           <div class="page-head-left">
             <div class="crumb"><a href="#/" @click.prevent="go('/')">首页</a><span>/</span><span>{{ subject.name }}</span><span>/</span><b>年份试卷</b></div>
-            <h1>{{ subject.name }} · 年份汇总</h1>
+            <h1>{{ subject.name }} · 年份档案</h1>
             <p>按年份整理真题 · 共 {{ allYearQuestions.length }} 题 / {{ years.length }} 个年份</p>
           </div>
           <div class="page-head-actions">
@@ -166,7 +166,7 @@
             <section class="paper-section card">
               <div class="paper-section-head">
                 <h3><Icon name="grid" :size="15" /> 题号导航</h3>
-                <span style="font-size:11.5px;color:#b3a998">点击题号直接进入题目</span>
+                <span style="font-size:11.5px;color:var(--faint)">点击题号直接进入题目</span>
               </div>
               <div class="qnum-grid" v-if="yearQuestions.length">
                 <a v-for="q in yearQuestions" :key="q.id" class="qnum" :class="{answered: S.mastery[q.id]}" :href="'#/question/' + q.id" @click.prevent="openQuestion(q)" :title="q.typeName + ' · ' + q.kpName">
@@ -304,7 +304,7 @@
       <div class="container">
         <div class="page-head">
           <div class="page-head-left">
-            <div class="crumb"><a href="#/" @click.prevent="go('/')">首页</a><span>/</span><b>学习空间</b></div>
+            <div class="crumb"><a href="#/" @click.prevent="go('/')">首页</a><span>/</span><b>错题本</b></div>
             <h1>{{ pageTitle }}</h1>
             <p>{{ pageDesc }} · 共 {{ allItems.length }} 题</p>
           </div>
@@ -344,7 +344,7 @@
                 <span class="tag tag-type" :class="'type-' + q.type">{{ q.typeName }}</span>
                 <span class="diff" :class="'diff-' + q.difficulty">{{ q.difficultyName }}</span>
                 <span v-if="S.mastery[q.id]" style="font-size:11px;color:#0f7a38;display:inline-flex;align-items:center;gap:3px"><Icon name="check-circle" :size="12" /> {{ ['','简单','一般','不会'][S.mastery[q.id]] }}</span>
-                <span v-else style="font-size:11px;color:#b3a998">未标记掌握</span>
+                <span v-else style="font-size:11px;color:var(--faint)">未标记掌握</span>
               </div>
             </div>
             <div class="wrong-actions">
@@ -694,7 +694,7 @@
           difficulty: this.difficulty,
           ids: this.preview.map((x) => x.id),
         });
-        U.toast("试卷已保存，可在「学习报告」中查看");
+        U.toast("试卷已保存，可在「学习档案」中查看");
       },
       start() {
         if (!this.preview.length) {
@@ -716,7 +716,7 @@
         YT.printPaper({
           title: (this.title.trim() || this.defaultTitle) + "（示例）",
           subtitle:
-            "研题岛真题网 · 共 " +
+            "研题岛 ATLAS · 共 " +
             this.preview.length +
             " 题 · 满分 " +
             this.previewScore +
@@ -758,7 +758,7 @@
             <p>按最新考研题型结构拼整卷，或按考点自由抽题；支持易 / 中 / 难筛选</p>
           </div>
           <div class="page-head-actions">
-            <button class="btn btn-ghost" @click="go('/import')"><Icon name="upload" :size="15" /> 导入 PDF 题库</button>
+            <button class="btn btn-ghost" @click="go('/import')"><Icon name="upload" :size="15" /> 导入 PDF</button>
           </div>
         </div>
 
@@ -877,7 +877,7 @@
             <section class="paper-section card" v-if="previewQuestions.length">
               <div class="paper-section-head">
                 <h3><Icon name="list" :size="15" /> 试卷预览</h3>
-                <span style="font-size:11.5px;color:#b3a998">可移除不想做的题</span>
+                <span style="font-size:11.5px;color:var(--faint)">可移除不想做的题</span>
               </div>
               <div class="tpl-preview" v-for="group in previewSections" :key="group.key">
                 <div class="tpl-preview-head" v-if="group.name">
@@ -904,9 +904,9 @@
             </section>
 
             <section class="records-card card" v-if="S.papers.length">
-              <h3><Icon name="folder" :size="15" /> 组卷记录 <span style="font-weight:500;font-size:11px;color:#b3a998">（{{ S.papers.length }}）</span></h3>
+              <h3><Icon name="folder" :size="15" /> 组卷记录 <span style="font-weight:500;font-size:11px;color:var(--faint)">（{{ S.papers.length }}）</span></h3>
               <div class="record-item" v-for="p in S.papers" :key="p.id">
-                <span class="ico" style="width:28px;height:28px;border-radius:8px;background:#fff6ed;color:#bc520a;display:flex;align-items:center;justify-content:center;flex:none"><Icon name="book" :size="14" /></span>
+                <span class="ico" style="width:28px;height:28px;border-radius:4px;background:var(--lime-soft);color:var(--forest);display:flex;align-items:center;justify-content:center;flex:none"><Icon name="book" :size="14" /></span>
                 <b>{{ p.title }}</b>
                 <span>{{ p.count }} 题 · {{ U.relTime(p.at) }}</span>
                 <button class="icon-btn" title="开始练习" @click="startRecord(p)"><Icon name="play" :size="14" /></button>
@@ -1002,7 +1002,7 @@
       exportData() {
         const data = {
           exportedAt: new Date().toISOString(),
-          site: "研题岛真题网",
+          site: "研题岛 ATLAS",
           user: S.user,
           wrong: S.wrong,
           favorites: S.favorites,
@@ -1070,8 +1070,8 @@
       <div class="container">
         <div class="page-head">
           <div class="page-head-left">
-            <div class="crumb"><a href="#/" @click.prevent="go('/')">首页</a><span>/</span><b>学习空间</b></div>
-            <h1>学习报告</h1>
+            <div class="crumb"><a href="#/" @click.prevent="go('/')">首页</a><span>/</span><b>学习档案</b></div>
+            <h1>学习档案</h1>
             <p>所有数据仅保存在当前浏览器 · 换设备不会同步</p>
           </div>
         </div>
@@ -1126,7 +1126,7 @@
                 </div>
               </div>
               <p class="comment-empty" v-else>做题后标记「简单 / 一般 / 不会」，这里会生成你的掌握度画像。</p>
-              <div style="display:flex;gap:16px;margin-top:12px;font-size:11.5px;color:#b3a998;flex-wrap:wrap">
+              <div style="display:flex;gap:16px;margin-top:12px;font-size:11.5px;color:var(--faint);flex-wrap:wrap">
                 <span>已标记 {{ markedTotal }} 题</span>
                 <span>·</span>
                 <span>已收藏 {{ S.favorites.length }} 题</span>
@@ -1157,7 +1157,7 @@
               <h3><Icon name="grid" :size="16" /> 科目练习量</h3>
               <div class="mbar-row" v-for="s in subjectStats" :key="s.name">
                 <span class="lbl" style="width:74px">{{ s.name }}</span>
-                <span class="mbar"><i :style="{ width: Math.min(100, (s.count / Math.max(1, subjectStats[0].count)) * 100) + '%', background: 'linear-gradient(90deg,#fdba74,#f97316)' }"></i></span>
+                <span class="mbar"><i :style="{ width: Math.min(100, (s.count / Math.max(1, subjectStats[0].count)) * 100) + '%', background: 'linear-gradient(90deg,var(--sage),var(--forest))' }"></i></span>
                 <b>{{ s.count }}</b>
               </div>
             </section>
@@ -1165,7 +1165,7 @@
 
           <div style="display:flex;flex-direction:column;gap:16px;min-width:0">
             <section class="panel-card card">
-              <h3><Icon name="folder" :size="16" /> 我的试卷 <span style="font-weight:500;font-size:11px;color:#b3a998">（{{ S.papers.length }}）</span></h3>
+              <h3><Icon name="folder" :size="16" /> 我的试卷 <span style="font-weight:500;font-size:11px;color:var(--faint)">（{{ S.papers.length }}）</span></h3>
               <div class="history-list" v-if="S.papers.length">
                 <div class="history-row" v-for="p in S.papers.slice(0, 5)" :key="p.id">
                   <span class="ico"><Icon name="book" :size="14" /></span>
@@ -1184,13 +1184,13 @@
             <section class="panel-card card">
               <h3><Icon name="settings" :size="16" /> 数据与设置</h3>
               <div class="profile-actions">
-                <button class="profile-action" @click="openWrong"><Icon name="flag" :size="16" /> 错题本 <span style="margin-left:auto;color:#b3a998">{{ S.wrong.length }} 题</span></button>
-                <button class="profile-action" @click="openFav"><Icon name="star" :size="16" /> 收藏夹 <span style="margin-left:auto;color:#b3a998">{{ S.favorites.length }} 题</span></button>
+                <button class="profile-action" @click="openWrong"><Icon name="flag" :size="16" /> 错题本 <span style="margin-left:auto;color:var(--faint)">{{ S.wrong.length }} 题</span></button>
+                <button class="profile-action" @click="openFav"><Icon name="star" :size="16" /> 收藏夹 <span style="margin-left:auto;color:var(--faint)">{{ S.favorites.length }} 题</span></button>
                 <button class="profile-action" @click="exportData"><Icon name="download" :size="16" /> 导出学习数据（JSON）</button>
                 <button class="profile-action" @click="clearPractice"><Icon name="rotate" :size="16" /> 清空练习记录</button>
                 <button class="profile-action danger" @click="resetAll"><Icon name="trash" :size="16" /> 清空全部本地数据</button>
               </div>
-              <p style="font-size:10.5px;color:#b3a998;line-height:1.7;margin-top:11px">本站为纯静态演示：没有账号系统，也不会上传任何数据。清除浏览器缓存会同时丢失这些记录。</p>
+              <p style="font-size:10.5px;color:var(--faint);line-height:1.7;margin-top:11px">本站为纯静态演示：没有账号系统，也不会上传任何数据。清除浏览器缓存会同时丢失这些记录。</p>
             </section>
           </div>
         </div>

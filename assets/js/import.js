@@ -367,7 +367,7 @@
     if (/^[\s\-—–·]*\d{1,3}[\s\-—–·]*$/.test(t)) return true;
     if (/^\d{1,3}\s*[.．、]\s*$/.test(t)) return true;
     if (/^第\s*\d+\s*页(\s*[/／共]\s*\d+\s*页)?$/.test(t)) return true;
-    if (/^(研题岛|研可岸|真题网).{0,18}$/.test(t) && t.length < 24) return true;
+    if (/^(研题岛|ATLAS).{0,18}$/i.test(t) && t.length < 24) return true;
     if (line.yTop < H * 0.045 && t.length < 30) return true;
     if (line.yBot > H * 0.965 && t.length < 30) return true;
     return false;
@@ -1230,7 +1230,7 @@
       <div class="container">
         <div class="page-head">
           <div class="page-head-left">
-            <div class="crumb"><a href="#/" @click.prevent="go('/')">首页</a><span>/</span><b>导入题库</b></div>
+            <div class="crumb"><a href="#/" @click.prevent="go('/')">首页</a><span>/</span><b>PDF 导入</b></div>
             <h1>上传 PDF，自动拆题</h1>
             <p>文字层 PDF 本地解析 · 自动分配题型、考点与难度 · 可逐题校对后再入库</p>
           </div>

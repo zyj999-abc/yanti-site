@@ -71,7 +71,7 @@
         return this.isChoice && this.selected === this.correctIndex;
       },
       title() {
-        return (this.queue && this.queue.meta && this.queue.meta.title) || "组合刷题";
+        return (this.queue && this.queue.meta && this.queue.meta.title) || "组合练习";
       },
       subjectName() {
         if (this.current) return this.current.subjectName;
@@ -253,7 +253,7 @@
             <span class="tag tag-type" :class="'type-' + current.type">{{ current.typeName }}</span>
             <span class="chip chip-orange">{{ current.year }} 年</span>
             <span class="diff" :class="'diff-' + current.difficulty">{{ current.difficultyName }}</span>
-            <span class="tag" style="background:#faf6ee;color:#8a8175">{{ current.score }} 分</span>
+            <span class="tag" style="background:var(--paper);color:var(--muted)">{{ current.score }} 分</span>
             <span class="crumb" style="margin-left:auto;font-size:11px"><Icon name="target" :size="12" /> {{ current.kpName }}</span>
           </div>
           <div class="q-title-row">
@@ -276,7 +276,7 @@
 
           <div class="q-stem" v-if="!imageUrl" v-html="fmt(current.stem)"></div>
 
-          <div class="q-options compact" v-if="imageUrl && current.options && current.options.length">
+          <div class="q-options compact" v-if="imageUrl && isChoice && current.options && current.options.length">
             <button v-for="(opt, i) in current.options" :key="'s' + i" class="q-option"
               :class="{
                 selected: selected === i && !revealed,
@@ -288,7 +288,7 @@
             </button>
           </div>
 
-          <div class="q-options" v-if="!imageUrl && current.options && current.options.length">
+          <div class="q-options" v-if="!imageUrl && isChoice && current.options && current.options.length">
             <button v-for="(opt, i) in current.options" :key="i" class="q-option"
               :class="{
                 selected: selected === i && !revealed,
@@ -354,7 +354,7 @@
           </div>
           <div class="result-notes">
             <div class="result-note-row" v-for="(s, i) in summary" :key="s.q.id">
-              <span style="width:22px;color:#b3a998">{{ i + 1 }}</span>
+              <span style="width:22px;color:var(--faint)">{{ i + 1 }}</span>
               <b>{{ s.q.year }} · {{ s.q.typeName }}</b>
               <span style="flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">{{ s.q.kpName }}</span>
               <span :class="s.mark === 'right' ? 'ok' : 'no'">{{ masteryName(s.mark) }}</span>
@@ -370,7 +370,7 @@
         <div class="empty-state card">
           <span class="empty-icon"><Icon name="play" :size="28" /></span>
           <h3>还没有待练习的题目</h3>
-          <p>去考点页选一个考点，点击「组合刷题」生成一组练习。</p>
+          <p>去考点页选一个考点，点击「组合练习」生成一组练习。</p>
           <button class="btn btn-primary" @click="go('/dashboard/math1')">去考点页</button>
         </div>
       </div>

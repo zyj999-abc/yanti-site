@@ -1,6 +1,6 @@
 /* =========================================================
-   研题岛真题网 · 纯静态前端
-   Warm paper / orange theme
+   研题岛 ATLAS · 纯静态前端
+   Base layout and print styles (ATLAS theme lives in atlas.css)
    ========================================================= */
 :root {
   --orange: #f97316;

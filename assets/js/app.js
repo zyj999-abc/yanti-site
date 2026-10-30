@@ -35,7 +35,7 @@
           html += '<img class="print-shot" src="' + imageUrls[q.id] + '" alt="原题截图" />';
         } else {
           html += "<div>" + U.fmt(q.stem) + "</div>";
-          if (q.options && q.options.length) {
+          if (q.options && q.options.length && ["choice", "cloze", "read", "newtype"].indexOf(q.type) >= 0) {
             html += '<div class="print-opts">';
             html += q.options
               .map((o, j) => "<span>" + U.esc(String.fromCharCode(65 + j)) + ". " + U.esc(o) + "</span>")
@@ -182,17 +182,17 @@
         <div class="modal-head">
           <div class="login-brand">
             <img src="assets/img/logo.svg" alt="" />
-            <div><b>研题岛</b> <span>真题网</span></div>
+            <div><b>研题岛</b> <span>ATLAS</span></div>
           </div>
           <button class="icon-btn" @click="close"><Icon name="x" :size="17" /></button>
         </div>
-        <h3>登录研题岛</h3>
+        <h3>进入研题岛</h3>
         <p>本站是纯静态演示站，没有服务器与账号体系。设置一个本地昵称即可使用全部功能，数据只保存在当前浏览器。</p>
         <div class="field">
           <label>你的昵称</label>
           <input ref="name" class="text-input" v-model="name" maxlength="12" placeholder="例如：冲刺 408" style="width:100%;height:42px" @keyup.enter="save" />
         </div>
-        <button class="btn btn-primary btn-block btn-lg login-btn" @click="save"><Icon name="user" :size="16" /> 进入学习空间</button>
+        <button class="btn btn-primary btn-block btn-lg login-btn" @click="save"><Icon name="user" :size="16" /> 进入研题岛</button>
         <button class="btn btn-ghost btn-block" style="margin-top:8px" @click="guest">先随便看看</button>
         <p class="login-note"><Icon name="info" :size="13" /> 昵称、错题、笔记与练习记录保存在 localStorage；清除浏览器数据会一并丢失。</p>
       </div>
@@ -274,25 +274,25 @@
       },
       pageTitle() {
         const p = this.route.parts;
-        if (!p.length) return "研题岛真题网 · 按考点刷考研真题";
+        if (!p.length) return "研题岛 ATLAS · 考研真题学习地图";
         if (p[0] === "dashboard") {
           const s = U.subjectOf(p[1]);
-          return (s ? s.name : "题库") + " · 考点汇总 · 研题岛";
+          return (s ? s.name : "题库") + " · 考点地图 · 研题岛 ATLAS";
         }
         if (p[0] === "papers") {
           const s = U.subjectOf(p[1]);
-          return (s ? s.name : "题库") + " · 年份试卷 · 研题岛";
+          return (s ? s.name : "题库") + " · 年份档案 · 研题岛 ATLAS";
         }
         if (p[0] === "question") {
           const q = D.questions.find((x) => x.id === p[1]);
-          return q ? q.kpName + " · " + q.year + " 年真题 · 研题岛" : "题目详情 · 研题岛";
+          return q ? q.kpName + " · " + q.year + " 年真题 · 研题岛 ATLAS" : "题目详情 · 研题岛 ATLAS";
         }
-        if (p[0] === "practice") return "组合刷题 · 研题岛";
-        if (p[0] === "wrong-book") return "错题本 · 研题岛";
-        if (p[0] === "assembly") return "智能组卷 · 研题岛";
-        if (p[0] === "import") return "导入题库 · 研题岛";
-        if (p[0] === "profile") return "学习报告 · 研题岛";
-        return "研题岛真题网";
+        if (p[0] === "practice") return "组合练习 · 研题岛 ATLAS";
+        if (p[0] === "wrong-book") return "错题本 · 研题岛 ATLAS";
+        if (p[0] === "assembly") return "智能组卷 · 研题岛 ATLAS";
+        if (p[0] === "import") return "PDF 导入 · 研题岛 ATLAS";
+        if (p[0] === "profile") return "学习档案 · 研题岛 ATLAS";
+        return "研题岛 ATLAS";
       },
     },
     watch: {

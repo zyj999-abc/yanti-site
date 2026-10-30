@@ -518,18 +518,32 @@
       isHome() {
         return S.route.path === "/";
       },
+      studyYear() {
+        const now = new Date();
+        return now.getMonth() >= 2 ? now.getFullYear() + 1 : now.getFullYear();
+      },
       navItems() {
         return [
-          { key: "dashboard", label: "考点汇总", path: "/dashboard/" + this.lastSubject, icon: "target" },
-          { key: "papers", label: "年份汇总", path: "/papers/" + this.lastSubject, icon: "calendar" },
-          { key: "assembly", label: "智能组卷", path: "/assembly", icon: "layers" },
-          { key: "import", label: "导入题库", path: "/import", icon: "upload" },
-          { key: "wrong-book", label: "错题本", path: "/wrong-book", icon: "flag" },
+          { key: "home", label: "总览", en: "OVERVIEW", path: "/", icon: "home" },
+          { key: "dashboard", label: "考点地图", en: "SYLLABUS MAP", path: "/dashboard/" + this.lastSubject, icon: "target" },
+          { key: "papers", label: "年份档案", en: "YEAR ARCHIVE", path: "/papers/" + this.lastSubject, icon: "calendar" },
+          { key: "assembly", label: "智能组卷", en: "PAPER BUILDER", path: "/assembly", icon: "layers" },
+          { key: "import", label: "PDF 导入", en: "INGEST", path: "/import", icon: "upload" },
+          { key: "wrong-book", label: "错题本", en: "ERROR LOG", path: "/wrong-book", icon: "flag" },
         ];
+      },
+      mobileItems() {
+        const keep = ["home", "dashboard", "assembly", "import", "wrong-book"];
+        const short = { home: "总览", dashboard: "考点", assembly: "组卷", import: "导入", "wrong-book": "错题" };
+        return this.navItems
+          .filter((i) => keep.indexOf(i.key) >= 0)
+          .map((i) => Object.assign({}, i, { label: short[i.key] || i.label }));
       },
       activeKey() {
         const p = S.route.parts;
-        if (p[0] === "question" || p[0] === "practice") return "dashboard";
+        if (!p.length) return "home";
+        if (p[0] === "question") return "dashboard";
+        if (p[0] === "practice") return "";
         if (p[0] === "assembly") return "assembly";
         if (p[0] === "import") return "import";
         if (p[0] === "wrong-book") return "wrong-book";
@@ -537,8 +551,27 @@
         if (p[0] === "dashboard") return "dashboard";
         return "";
       },
+      pageContext() {
+        const p = S.route.parts;
+        if (!p.length) return { code: "01", en: "OVERVIEW", title: "学习总览" };
+        const subjectId = p[1] || S.lastSubject || "math1";
+        const subj = D.subjects.find((s) => s.id === subjectId);
+        const sname = subj ? subj.name : "题库";
+        if (p[0] === "dashboard") return { code: "02", en: "SYLLABUS MAP", title: sname + " · 考点地图" };
+        if (p[0] === "papers") return { code: "03", en: "YEAR ARCHIVE", title: sname + " · 年份档案" };
+        if (p[0] === "assembly") return { code: "04", en: "PAPER BUILDER", title: "智能组卷" };
+        if (p[0] === "import") return { code: "05", en: "INGEST", title: "PDF 导入" };
+        if (p[0] === "wrong-book") return { code: "06", en: "ERROR LOG", title: "错题本" };
+        if (p[0] === "question") return { code: "07", en: "QUESTION", title: "题目详情" };
+        if (p[0] === "practice") return { code: "08", en: "PRACTICE", title: "组合练习" };
+        if (p[0] === "profile") return { code: "09", en: "PROFILE", title: "学习档案" };
+        return { code: "00", en: "ATLAS", title: "研题岛" };
+      },
     },
     methods: {
+      num(n) {
+        return String(n).padStart(2, "0");
+      },
       go(path) {
         this.menuOpen = false;
         go(path);
@@ -549,70 +582,134 @@
       },
     },
     template: `
-    <header class="topbar">
-      <div class="container topbar-inner">
-        <a class="brand" href="#/" @click.prevent="go('/')" aria-label="研题岛首页">
-          <img src="assets/img/logo.svg" alt="" class="brand-logo" />
-          <span class="brand-text"><b>研题岛</b><em>真题网</em></span>
+    <header class="app-rail">
+      <svg class="rail-topo" viewBox="0 0 240 420" fill="none" aria-hidden="true">
+        <g stroke="#d9ff59" stroke-width="1">
+          <path d="M-20 360c42-15 44-62 84-62 46 0 44 54 91 54 45 0 48-45 104-45" opacity=".16"/>
+          <path d="M-24 382c46-12 50-56 88-56 44 0 46 50 89 50 43 0 48-39 103-39" opacity=".1"/>
+          <path d="M-7 337c35-18 39-73 78-73 43 0 45 60 92 60 41 0 47-50 92-50" opacity=".08"/>
+        </g>
+        <path d="M26 90h16M34 82v16" stroke="#d9ff59" stroke-width="1" opacity=".32"/>
+      </svg>
+      <a class="rail-brand" href="#/" @click.prevent="go('/')" aria-label="研题岛 ATLAS 首页">
+        <img src="assets/img/logo.svg" alt="" />
+        <span class="rail-brand-text"><b>研题岛</b><em>ATLAS</em></span>
+      </a>
+      <p class="rail-caption">考研真题 · 学习地图系统</p>
+      <div class="rail-index"><span>INDEX</span><i></i><em>{{ studyYear }} ED.</em></div>
+      <nav class="rail-nav" aria-label="主导航">
+        <a v-for="(item, i) in navItems" :key="item.key" :href="'#' + item.path" class="rail-link" :class="{active: activeKey === item.key}" @click.prevent="go(item.path)">
+          <span class="rl-num">{{ num(i + 1) }}</span>
+          <span class="rl-text"><b>{{ item.label }}</b><em>{{ item.en }}</em></span>
+          <span class="rl-badge" v-if="item.key === 'wrong-book' && S.wrong.length">{{ S.wrong.length > 99 ? '99+' : S.wrong.length }}</span>
         </a>
-        <nav class="main-nav" aria-label="主导航">
-          <a v-for="item in navItems" :key="item.key" :href="'#' + item.path" class="nav-link" :class="{active: activeKey === item.key}" @click.prevent="go(item.path)">
-            <Icon :name="item.icon" :size="15" /><span>{{ item.label }}</span>
-            <i v-if="item.key === 'wrong-book' && S.wrong.length" class="nav-badge">{{ S.wrong.length > 99 ? '99+' : S.wrong.length }}</i>
-          </a>
-        </nav>
-        <div class="top-actions">
-          <button class="icon-btn search-btn" title="搜索题目（Ctrl / ⌘ + K）" @click="openSearch"><Icon name="search" :size="18" /><span class="search-hint">搜索</span></button>
-          <button class="btn btn-primary btn-login" v-if="!S.user.name" @click="S.loginOpen = true">登录</button>
-          <button class="avatar-btn" v-else @click="go('/profile')" :title="S.user.name">{{ initial }}</button>
-          <button class="icon-btn menu-btn" title="菜单" @click="menuOpen = true"><Icon name="menu" :size="19" /></button>
-        </div>
+      </nav>
+      <div class="rail-bottom">
+        <div class="rail-quote"><span>“</span><p>每一道题，<br />都有它的坐标。</p></div>
+        <a class="rail-profile" href="#/profile" @click.prevent="go('/profile')">
+          <span class="rail-avatar">{{ initial }}</span>
+          <span class="rail-profile-text"><b>{{ S.user.name || '本地访客' }}</b><em>{{ S.practice.length ? '已留下 ' + S.practice.length + ' 条轨迹' : '建立你的学习档案' }}</em></span>
+          <Icon name="chev-right" :size="15" />
+        </a>
+        <p class="rail-note"><i></i>LOCAL STORAGE / NO SERVER</p>
       </div>
-      <Teleport to="body">
-        <transition name="fade">
-          <div class="mobile-mask" v-if="menuOpen" @click.self="menuOpen = false">
-            <div class="mobile-drawer card">
-              <div class="mobile-drawer-head">
-                <div class="brand-text"><b>研题岛</b><em>真题网</em></div>
-                <button class="icon-btn" @click="menuOpen = false"><Icon name="x" /></button>
+    </header>
+
+    <div class="workspace-bar">
+      <div class="wb-context">
+        <span class="wb-code">{{ pageContext.code }}</span>
+        <div class="wb-title"><span>{{ pageContext.en }}</span><b>{{ pageContext.title }}</b></div>
+      </div>
+      <div class="wb-tools">
+        <button class="wb-search" title="搜索题目（Ctrl / ⌘ + K）" @click="openSearch">
+          <Icon name="search" :size="16" /><span>搜索题目 / 考点</span><kbd><i>⌘</i>K</kbd>
+        </button>
+        <button class="wb-import" @click="go('/import')"><Icon name="upload" :size="15" /><span>导入 PDF</span></button>
+        <button class="wb-avatar" v-if="S.user.name" @click="go('/profile')" :title="S.user.name">{{ initial }}</button>
+        <button class="wb-avatar is-empty" v-else @click="S.loginOpen = true" title="设置本地昵称"><Icon name="user" :size="16" /></button>
+      </div>
+    </div>
+
+    <header class="mobile-bar">
+      <a class="mobile-brand" href="#/" @click.prevent="go('/')">
+        <img src="assets/img/logo.svg" alt="" />
+        <span><b>研题岛</b><em>ATLAS</em></span>
+      </a>
+      <div class="mobile-bar-actions">
+        <button @click="openSearch" aria-label="搜索"><Icon name="search" :size="19" /></button>
+        <button @click="menuOpen = true" aria-label="菜单"><Icon name="menu" :size="20" /></button>
+      </div>
+    </header>
+
+    <nav class="mobile-tabs" aria-label="快捷导航">
+      <a v-for="item in mobileItems" :key="item.key" :href="'#' + item.path" :class="{active: activeKey === item.key}" @click.prevent="go(item.path)">
+        <span class="mt-icon"><Icon :name="item.icon" :size="19" /><i v-if="item.key === 'wrong-book' && S.wrong.length">{{ S.wrong.length > 9 ? '9+' : S.wrong.length }}</i></span>
+        <span>{{ item.label }}</span>
+      </a>
+    </nav>
+
+    <Teleport to="body">
+      <transition name="fade">
+        <div class="mobile-mask" v-if="menuOpen" @click.self="menuOpen = false">
+          <div class="mobile-drawer">
+            <div class="mobile-drawer-head">
+              <div class="rail-brand">
+                <img src="assets/img/logo.svg" alt="" />
+                <span class="rail-brand-text"><b>研题岛</b><em>ATLAS</em></span>
               </div>
-              <a v-for="item in navItems" :key="item.key" class="mobile-nav-link" :class="{active: activeKey === item.key}" :href="'#' + item.path" @click.prevent="go(item.path)">
-                <Icon :name="item.icon" />{{ item.label }}
-                <span v-if="item.key === 'wrong-book' && S.wrong.length" class="chip chip-orange">{{ S.wrong.length }}</span>
-              </a>
-              <div class="mobile-drawer-sub">
-                <a href="#/profile" @click.prevent="go('/profile')"><Icon name="user" />{{ S.user.name || '本地学习档案' }}</a>
-                <a href="#/assembly" @click.prevent="go('/assembly')"><Icon name="layers" />组卷记录</a>
-              </div>
-              <p class="mobile-drawer-note">纯前端演示 · 学习数据保存在本机浏览器</p>
+              <button class="icon-btn drawer-close" @click="menuOpen = false" aria-label="关闭"><Icon name="x" :size="18" /></button>
             </div>
+            <div class="mobile-drawer-index"><span>INDEX</span><i></i><em>{{ studyYear }} EDITION</em></div>
+            <a v-for="(item, i) in navItems" :key="item.key" class="mobile-nav-link" :class="{active: activeKey === item.key}" :href="'#' + item.path" @click.prevent="go(item.path)">
+              <span class="md-num">{{ num(i + 1) }}</span>
+              <span class="md-label">{{ item.label }}<em>{{ item.en }}</em></span>
+              <span v-if="item.key === 'wrong-book' && S.wrong.length" class="md-badge">{{ S.wrong.length }}</span>
+              <Icon name="chev-right" :size="15" />
+            </a>
+            <div class="mobile-drawer-sub">
+              <a href="#/profile" @click.prevent="go('/profile')"><Icon name="user" :size="16" />{{ S.user.name || '本地学习档案' }}</a>
+              <a href="#/papers/math1" @click.prevent="go('/papers/' + lastSubject)"><Icon name="calendar" :size="16" />年份试卷</a>
+            </div>
+            <p class="mobile-drawer-note"><i></i>学习数据只保存在本机浏览器</p>
           </div>
-        </transition>
-      </Teleport>
-    </header>`,
+        </div>
+      </transition>
+    </Teleport>`,
   };
 
   YT.components.SiteFooter = {
     data() {
       return { S: S, year: new Date().getFullYear() };
     },
-    methods: { go: go },
+    methods: {
+      go: go,
+      top() {
+        window.scrollTo({ top: 0, behavior: "smooth" });
+      },
+    },
     template: `
     <footer class="site-footer">
       <div class="container footer-inner">
         <div class="footer-brand">
           <img src="assets/img/logo.svg" alt="" />
-          <div><b>研题岛 · 真题网</b><span>按考点刷真题，把复习变具体</span></div>
+          <div><b>研题岛 <em>ATLAS</em></b><span>每一道题，都有它的坐标。</span></div>
         </div>
-        <div class="footer-links">
-          <a href="#/" @click.prevent="go('/')">首页</a>
+        <nav class="footer-nav" aria-label="页脚导航">
           <a href="#/dashboard/math1" @click.prevent="go('/dashboard/math1')">数学</a>
           <a href="#/dashboard/cs408" @click.prevent="go('/dashboard/cs408')">408</a>
           <a href="#/dashboard/english1" @click.prevent="go('/dashboard/english1')">英语</a>
+          <a href="#/papers/math1" @click.prevent="go('/papers/math1')">年份</a>
           <a href="#/assembly" @click.prevent="go('/assembly')">组卷</a>
+        </nav>
+        <div class="footer-meta">
+          <p>纯前端学习工具 · 原创示例内容</p>
+          <p>错题、笔记与练习记录只存于当前浏览器。</p>
         </div>
-        <p class="footer-note">本站为纯前端演示项目：题目为原创示例内容，仅用于展示交互；错题、收藏、笔记与记录保存在浏览器 localStorage 中。可直接部署到 GitHub Pages。</p>
-        <p class="footer-copy">© {{ year }} 研题岛真题网 · Demo</p>
+      </div>
+      <div class="container footer-base">
+        <span>© {{ year }} 研题岛 ATLAS</span>
+        <span>LOCAL-FIRST / NO SERVER / GITHUB PAGES</span>
+        <button @click="top">回到顶部 <span>↑</span></button>
       </div>
     </footer>`,
   };
