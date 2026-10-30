@@ -248,16 +248,102 @@
     "⻰": "龙", "⻮": "齿", "⻳": "龟", "⻬": "齐", "⻆": "角", "⻊": "足",
     "⻑": "长",
   };
-  function normText(s) {
-    return String(s || "")
-      .normalize("NFKC")
-      .replace(/[\u2e80-\u2eff]/g, (ch) => RADICAL_FIX[ch] || ch)
-      .replace(/\u0000/g, "")
-      .replace(/[\u00a0\u3000]/g, " ")
-      .replace(/\ufb01/g, "fi")
-      .replace(/\ufb02/g, "fl")
-      .replace(/[ \t]+/g, " ")
-      .trim();
+  /* PDF text-layer cleanup: private-use glyphs, control chars, broken mappings */
+  let parseDiag = null;
+  function newDiag() {
+    return {
+      raw: 0,
+      clean: 0,
+      removed: 0,
+      junkLines: 0,
+      watermarkLines: 0,
+      inlineCleaned: 0,
+      rotatedItems: 0,
+      watermarkReasons: {},
+      bodyWatermark: false,
+      bodyPages: [],
+      textChars: 0,
+      textPages: 0,
+      removedRatio: 0,
+      lowQuality: false,
+      scanned: false,
+    };
+  }
+  parseDiag = newDiag();
+
+  function stripGlyphs(t, re, map) {
+    return t.replace(re, (m) => {
+      if (parseDiag) parseDiag.removed += m.length;
+      return map ? map(m) : "";
+    });
+  }
+
+  function cleanGlyphs(s) {
+    let t = String(s || "");
+    if (parseDiag) parseDiag.raw += t.length;
+    t = t.normalize("NFKC");
+    // Kangxi/CJK radicals used by some embedded fonts instead of normal hanzi.
+    t = stripGlyphs(t, /[\u2e80-\u2eff]/g, (m) => RADICAL_FIX[m] || "");
+    // Control, bidi, zero-width, soft hyphen, replacement and private-use glyphs.
+    t = stripGlyphs(
+      t,
+      /[\u0000-\u0008\u000B\u000C\u000E-\u001F\u007F-\u009F\u00AD\u200B-\u200F\u202A-\u202E\u2060-\u206F\uFEFF\uFFFD]/g
+    );
+    t = stripGlyphs(t, /[\uE000-\uF8FF]/g);
+    // Currency/legal/symbol-font leftovers that are almost never real exam text.
+    t = stripGlyphs(t, /[\u00A4\u00A6\u00A7\u00A8\u00A9\u00AA\u00AB\u00AC\u00AE\u00AF\u00B4\u00B6\u00B8\u00BA\u00BB\u00BF]/g);
+    // NFKC composes Latin accents; leftover combining marks are broken glyph output.
+    t = stripGlyphs(t, /[\u0300-\u036F]/g);
+    t = t.replace(/[\u00a0\u2000-\u200a\u202f\u205f\u3000]/g, " ");
+    t = t.replace(/[ \t]+/g, " ").trim();
+    if (parseDiag) parseDiag.clean += t.length;
+    return t;
+  }
+
+  function isGarbageLine(text) {
+    const t = String(text || "").trim();
+    if (!t) return true;
+    if (/^[（(]\s*\d{1,3}\s*[)）]$/.test(t)) return true;
+    if (/^(.)\1{3,}$/.test(t) && !/^[_\-—–.．·]+$/.test(t)) return true;
+    if (t.length >= 4) {
+      const wordish = (t.match(/[\p{L}\p{N}]/gu) || []).length;
+      if (!wordish) return true;
+      const boxes = (t.match(/[\u2500-\u257f\u2580-\u259f]/g) || []).length;
+      if (boxes >= 3 && boxes / t.length > 0.5) return true;
+      const dingbats = (t.match(/[\u2700-\u27bf]/g) || []).length;
+      if (dingbats >= 3 && dingbats / t.length > 0.5) return true;
+    }
+    return false;
+  }
+
+  /* Watermark / agency / contact patterns */
+  const WM_STRONG_RE = /(https?:\/\/|www\.|[\w-]+\.(?:com|cn|net|org|top|xyz|vip)\b|微信号|公众号|QQ\s*[:：]?\s*\d{4,}|客服\s*(?:QQ|微信|电话)?|扫码|二维码|内部资料|禁止(?:传播|复制|翻印|转卖|外传)|版权所有|侵权必究|免费领取|获取(?:更多)?资料|考研(?:资料|真题)网|真题网|淘宝|闲鱼|拼多多)/i;
+  const WM_WEAK_RE = /(咨询|联系电话|联系方式|手机号|关注我们|添加微信|资料群|考研群|考研帮|店铺)/i;
+
+  function sigOf(text) {
+    return String(text || "")
+      .toLowerCase()
+      .replace(/[0-9０-９]+/g, "#")
+      .replace(/[\s~`!@#$%^&*()_+\-=\[\]{};':"\\|,.<>/?，。！？；：、“”‘’（）【】《》〈〉…—–·•]+/g, "")
+      .slice(0, 48);
+  }
+
+  function lineBand(line, H) {
+    if (line.yTop > H * 0.93) return "top";
+    if (line.yBot < H * 0.07) return "bottom";
+    return "body";
+  }
+
+  function scrubInline(text) {
+    let out = String(text || "");
+    out = out.replace(/https?:\/\/\S+/gi, " ");
+    out = out.replace(/www\.[\w.-]+/gi, " ");
+    out = out.replace(/[\w.-]+\.(?:com|cn|net|org|top|xyz|vip)\b/gi, " ");
+    out = out.replace(/[\w.-]+@[\w.-]+\.\w+/gi, " ");
+    out = out.replace(/(?:QQ|微信|电话|手机)\s*[:：]?\s*\d{4,}/gi, " ");
+    out = out.replace(/第\s*\d{1,3}\s*页(?:\s*[/／]?\s*共\s*\d{1,3}\s*页)?/g, " ");
+    out = out.replace(/\s+/g, " ").trim();
+    return out;
   }
 
   function buildLines(items, width, height) {
@@ -266,28 +352,54 @@
       if (!it.str || !String(it.str).trim()) return;
       const tr = it.transform || [1, 0, 0, 1, 0, 0];
       const size = Math.hypot(tr[2], tr[3]) || it.height || 10;
+      const str = cleanGlyphs(String(it.str));
+      if (!str) return;
+      let ang = (Math.atan2(tr[1], tr[0]) * 180) / Math.PI;
+      if (Math.abs(ang) < 2) ang = 0;
       arr.push({
-        str: String(it.str),
+        str: str,
         x: tr[4],
         y: tr[5],
         w: it.width || 0,
         size: size,
         idx: idx,
+        ang: ang,
+        rot: false,
       });
     });
     if (!arr.length) return [];
 
-    const left = arr.filter((a) => a.x < width * 0.48).length;
-    const right = arr.length - left;
-    const crossing = arr.filter((a) => a.x < width * 0.46 && a.x + a.w > width * 0.54).length;
-    const midStarts = arr.filter((a) => a.x > width * 0.43 && a.x < width * 0.57).length;
+    // If most of the page is rotated (rotated scan), treat that angle as normal.
+    const buckets = {};
+    arr.forEach((a) => {
+      const k = Math.round(a.ang / 5) * 5;
+      buckets[k] = (buckets[k] || 0) + 1;
+    });
+    let baseAng = 0;
+    let baseN = -1;
+    Object.keys(buckets).forEach((k) => {
+      if (buckets[k] > baseN) {
+        baseN = buckets[k];
+        baseAng = +k;
+      }
+    });
+    arr.forEach((a) => {
+      a.rot = Math.abs(a.ang - baseAng) > 10;
+      if (a.rot && parseDiag) parseDiag.rotatedItems++;
+    });
+    const flat = arr.filter((a) => !a.rot);
+
+    const left = flat.filter((a) => a.x < width * 0.48).length;
+    const right = flat.length - left;
+    const crossing = flat.filter((a) => a.x < width * 0.46 && a.x + a.w > width * 0.54).length;
+    const midStarts = flat.filter((a) => a.x > width * 0.43 && a.x < width * 0.57).length;
     const twoCol =
-      arr.length > 40 &&
-      left > arr.length * 0.22 &&
-      right > arr.length * 0.22 &&
-      Math.min(left, right) / arr.length > 0.28 &&
-      crossing < arr.length * 0.04 &&
-      midStarts < arr.length * 0.02;
+      flat.length > 40 &&
+      left > flat.length * 0.22 &&
+      right > flat.length * 0.22 &&
+      Math.min(left, right) / flat.length > 0.28 &&
+      crossing < flat.length * 0.04 &&
+      midStarts < flat.length * 0.02;
 
     function group(list) {
       list.sort((a, b) => b.y - a.y || a.x - b.x);
@@ -297,6 +409,7 @@
         let best = null;
         let bestDy = Infinity;
         for (let i = lines.length - 1; i >= 0 && i >= lines.length - 8; i--) {
+          if (!!lines[i].rot !== !!it.rot) continue;
           const dy = Math.abs(lines[i].y - it.y);
           if (dy <= tol && dy < bestDy) {
             best = lines[i];
@@ -308,7 +421,7 @@
           best.y = (best.y * (best.items.length - 1) + it.y) / best.items.length;
           best.size = Math.max(best.size, it.size);
         } else {
-          lines.push({ y: it.y, size: it.size, items: [it] });
+          lines.push({ y: it.y, size: it.size, items: [it], rot: it.rot });
         }
       });
       const out = [];
@@ -332,7 +445,7 @@
           yTop = Math.max(yTop, it.y + it.size * 0.82);
           yBot = Math.min(yBot, it.y - it.size * 0.22);
         });
-        text = normText(text).replace(/([\u4e00-\u9fff])\s+(?=[\u4e00-\u9fff])/g, "$1");
+        text = text.replace(/([\u4e00-\u9fff])\s+(?=[\u4e00-\u9fff])/g, "$1").trim();
         if (!text) return;
         out.push({
           text: text,
@@ -341,6 +454,7 @@
           yTop: yTop,
           yBot: yBot,
           size: line.size,
+          rot: !!line.rot,
           col: x1 < width * 0.5 ? 0 : 1,
         });
       });
@@ -366,15 +480,108 @@
     if (!t) return true;
     if (/^[\s\-—–·]*\d{1,3}[\s\-—–·]*$/.test(t)) return true;
     if (/^\d{1,3}\s*[.．、]\s*$/.test(t)) return true;
+    if (/^[（(]\s*\d{1,3}\s*[)）]$/.test(t)) return true;
     if (/^第\s*\d+\s*页(\s*[/／共]\s*\d+\s*页)?$/.test(t)) return true;
     if (/^(研题岛|ATLAS).{0,18}$/i.test(t) && t.length < 24) return true;
-    if (line.yTop < H * 0.045 && t.length < 30) return true;
-    if (line.yBot > H * 0.965 && t.length < 30) return true;
+    if (isGarbageLine(t)) {
+      if (parseDiag) parseDiag.junkLines++;
+      return true;
+    }
+    const qStart = /^(?:第\s*\d{1,3}\s*题|\d{1,3}\s*[.．、]|[（(]\s*\d{1,3}\s*[)）])/.test(t);
+    if (line.yTop < H * 0.045 && t.length < 60 && !qStart) {
+      if (parseDiag) parseDiag.junkLines++;
+      return true;
+    }
+    if (line.yBot > H * 0.955 && t.length < 60 && !qStart) {
+      if (parseDiag) parseDiag.junkLines++;
+      return true;
+    }
     return false;
+  }
+
+  function analyzePages(pages, subject) {
+    const stats = parseDiag || newDiag();
+    const group = (U.subjectOf(subject) || {}).group || "math";
+    const pageCount = pages.length;
+    const sigCount = Object.create(null);
+    const sigPages = Object.create(null);
+    const allText = [];
+    pages.forEach((p) => {
+      (p.lines || []).forEach((l) => {
+        const sig = sigOf(l.text);
+        if (!sig || sig.length < 3) return;
+        sigCount[sig] = (sigCount[sig] || 0) + 1;
+        if (!sigPages[sig]) sigPages[sig] = new Set();
+        sigPages[sig].add(p.pageNo);
+      });
+    });
+    let textChars = 0;
+    pages.forEach((p) => {
+      p.lines = (p.lines || []).filter((l) => {
+        if (isGarbageLine(l.text)) {
+          stats.junkLines++;
+          return false;
+        }
+        const sig = sigOf(l.text);
+        const onPages = sig && sigPages[sig] ? sigPages[sig].size : 0;
+        const occurrence = sig ? sigCount[sig] || 0 : 0;
+        const band = lineBand(l, p.height);
+        const strong = WM_STRONG_RE.test(l.text);
+        const weak = WM_WEAK_RE.test(l.text);
+        let hit = "";
+        if (strong && l.text.length < 120) hit = "pattern";
+        else if (weak && l.text.length < 40 && (onPages >= 2 || occurrence >= 3 || l.rot)) hit = "pattern";
+        else if (l.rot && l.text.length <= 30 && (onPages >= 2 || occurrence >= 2)) hit = "rotated";
+        else if (l.rot && l.text.length <= 10) hit = "rotated";
+        else if (band !== "body" && onPages >= 2) hit = "margin";
+        else if (onPages >= 3 && onPages >= Math.ceil(pageCount * 0.6) && sig.length <= 40) hit = "repeat";
+        else if (pageCount === 1 && occurrence >= 5 && sig.length <= 24 && (l.rot || weak)) hit = "repeat";
+        if (hit) {
+          l.watermark = true;
+          stats.watermarkLines++;
+          stats.watermarkReasons[hit] = (stats.watermarkReasons[hit] || 0) + 1;
+          if (band === "body" && !p.bodyWatermark) {
+            p.bodyWatermark = true;
+            stats.bodyPages.push(p.pageNo);
+          }
+          return false;
+        }
+        if (strong || weak) {
+          const scrubbed = scrubInline(l.text);
+          if (!scrubbed || scrubbed.length < 2) {
+            stats.junkLines++;
+            return false;
+          }
+          if (scrubbed !== l.text) {
+            l.text = scrubbed;
+            stats.inlineCleaned++;
+          }
+        }
+        textChars += l.text.length;
+        allText.push(l.text);
+        return true;
+      });
+    });
+    stats.textChars = textChars;
+    stats.textPages = pages.filter((p) => p.lines.some((l) => l.text.length > 2)).length;
+    stats.removedRatio = stats.removed / Math.max(1, stats.removed + textChars);
+    stats.scanned = pageCount > 0 && stats.textPages < Math.ceil(pageCount * 0.5);
+    const body = allText.join("");
+    stats.cjkChars = (body.match(/[\u4e00-\u9fff]/g) || []).length;
+    stats.bodyWatermark = stats.bodyPages.length > 0;
+    stats.brokenEncoding =
+      group !== "en" && textChars > 200 && stats.cjkChars < textChars * 0.06;
+    stats.lowQuality =
+      stats.scanned ||
+      stats.brokenEncoding ||
+      (textChars < 120 && stats.removed > 20) ||
+      stats.removedRatio > 0.16;
+    return stats;
   }
 
   function sectionType(text) {
     const trimmed = text.trim();
+    if (WM_STRONG_RE.test(trimmed)) return null;
     if (trimmed.length > 45 && !/Part|Section/i.test(trimmed)) return null;
     const headingStart =
       /^(第?[一二三四五六七八九十]+\s*[、.．]|Part\s+[ABCIVX]+|Section\s+[IVXABC]+|I{1,3}\s*[.、]|V?I{0,3}\s*[.、])/i.test(trimmed) ||
@@ -759,26 +966,24 @@
     }
 
     pages.forEach((page) => {
-      const lines = page.lines.slice().sort((a, b) => (a.col - b.col) || (b.yTop - a.yTop) || (a.x1 - b.x1));
+      const lines = page.lines
+        .filter((l) => !l.watermark)
+        .slice()
+        .sort((a, b) => (a.col - b.col) || (b.yTop - a.yTop) || (a.x1 - b.x1));
       lines.forEach((line) => {
         const text = line.text;
-        const st = sectionType(text);
-        if (st && !/^\d/.test(text)) {
+        if (isAnswerHeading(text)) {
           closeBlock();
-          if (st !== "section") section = st;
-          answerMode = isAnswerHeading(text);
+          answerMode = true;
           lastNum = 0;
           pending = [];
           sectionPassage = "";
           sectionPassageTitle = "";
           return;
         }
-        if (isAnswerHeading(text)) {
-          closeBlock();
-          answerMode = true;
-          return;
-        }
         if (answerMode) {
+          // Answer sections often repeat “一、选择题 / 二、填空题” as subheadings.
+          if (text.length <= 30 && sectionType(text)) return;
           // compact answer line: 1.A 2.B 3.C
           const re = /(\d{1,3})\s*[.．、:：]?\s*([A-D])(?=\s|$)/g;
           const compact = [];
@@ -786,6 +991,18 @@
           while ((cm = re.exec(text))) compact.push([+cm[1], cm[2]]);
           if (compact.length >= 2) {
             compact.forEach((x) => (answerMap[x[0]] = [x[1]]));
+            return;
+          }
+          // compact non-choice answers: 5. 3　6. 1
+          const pairs = [];
+          const pairRe = /(\d{1,3})\s*[.．、:：]\s*(.+?)(?=\s+\d{1,3}\s*[.．、:：]|$)/g;
+          let pm;
+          while ((pm = pairRe.exec(text))) {
+            if (pm[2].trim()) pairs.push([+pm[1], pm[2].trim()]);
+          }
+          if (pairs.length >= 2 && text.length < 180) {
+            pairs.forEach((x) => (answerMap[x[0]] = [x[1]]));
+            lastNum = pairs[pairs.length - 1][0];
             return;
           }
           const am = text.match(/^\s*(\d{1,3})\s*[.．、:：]?\s*(.*)$/);
@@ -797,6 +1014,16 @@
           } else if (lastNum && answerMap[lastNum]) {
             answerMap[lastNum].push(text);
           }
+          return;
+        }
+        const st = sectionType(text);
+        if (st && !/^\d/.test(text)) {
+          closeBlock();
+          if (st !== "section") section = st;
+          lastNum = 0;
+          pending = [];
+          sectionPassage = "";
+          sectionPassageTitle = "";
           return;
         }
         const start = matchStart(text, section, lastNum);
@@ -851,6 +1078,7 @@
     const pdfjsLib = window.pdfjsLib;
     pdfjsLib.GlobalWorkerOptions.workerSrc = "assets/js/vendor/pdf.worker.min.js";
     const data = new Uint8Array(await file.arrayBuffer());
+    parseDiag = newDiag();
     const pdf = await pdfjsLib.getDocument({ data: data, useSystemFonts: true }).promise;
     const pages = [];
     for (let i = 1; i <= pdf.numPages; i++) {
@@ -866,11 +1094,37 @@
       });
       await new Promise((r) => setTimeout(r, 0));
     }
+    const stats = analyzePages(pages, subject);
     const questions = segmentPages(pages, subject);
-    return { pdf: pdf, pages: pages, questions: questions };
+    stats.questions = questions.length;
+    return { pdf: pdf, pages: pages, questions: questions, stats: stats };
   }
 
-  async function cropQuestionImages(pdf, rows, onProgress) {
+  // Fade light-gray / low-saturation strokes (typical text watermarks) to white.
+  // Dark formulas and diagrams below the threshold are left untouched.
+  function softenWatermark(ctx, w, h) {
+    try {
+      const img = ctx.getImageData(0, 0, w, h);
+      const d = img.data;
+      const lut = new Uint8Array(256);
+      for (let v = 0; v < 256; v++) lut[v] = v <= 168 ? v : Math.round(255 - (255 - v) * 0.035);
+      for (let i = 0; i < d.length; i += 4) {
+        const r = d[i], g = d[i + 1], b = d[i + 2];
+        const mx = Math.max(r, g, b);
+        const mn = Math.min(r, g, b);
+        if (mn > 168 && mx - mn < 22) {
+          d[i] = lut[r];
+          d[i + 1] = lut[g];
+          d[i + 2] = lut[b];
+        }
+      }
+      ctx.putImageData(img, 0, 0);
+    } catch (e) {
+      /* canvas too large or tainted: keep the original rendering */
+    }
+  }
+
+  async function cropQuestionImages(pdf, rows, onProgress, cleanPages) {
     const byPage = {};
     rows.forEach((r, i) => {
       if (!r.bbox || !r.pageNo) return;
@@ -891,6 +1145,7 @@
       ctx.fillStyle = "#fff";
       ctx.fillRect(0, 0, canvas.width, canvas.height);
       await page.render({ canvasContext: ctx, viewport: vp }).promise;
+      if (cleanPages && cleanPages.has(pageNo)) softenWatermark(ctx, canvas.width, canvas.height);
       const items = byPage[pageNo];
       for (let k = 0; k < items.length; k++) {
         const row = items[k].row;
@@ -949,7 +1204,7 @@
         rows: [],
         parsedPdf: null,
         parseWarning: "",
-        expanded: {},
+        cleanStats: null,        expanded: {},
         bulkType: "",
         bulkDiff: "",
         batches: S.importedBatches,
@@ -1035,6 +1290,7 @@
             this.progressText = p.phase === "read" ? "正在提取文字 " + p.page + " / " + p.pages + " 页" : "正在生成原题截图…";
           });
           this.parsedPdf = Vue.markRaw(res.pdf);
+          this.cleanStats = res.stats || null;
           const qs = res.questions;
           if (!qs.length) {
             this.parseWarning = "没有识别到题目。这个 PDF 可能是扫描版（没有文字层），纯前端无法直接解析；请先用 OCR 工具转成带文字层的 PDF，或换一份电子版。";
@@ -1069,6 +1325,23 @@
                 answerIndex: q.answerIndex,
               };
             });
+          }
+          if (this.cleanStats && qs.length) {
+            if (this.cleanStats.scanned) {
+              this.parseWarning =
+                "这份 PDF 大部分页面没有可用文字层（可能是扫描件），只识别出少量文字。建议先 OCR，或核对后再导入。";
+              if (this.canKeepImage) this.keepImage = true;
+            } else if (this.cleanStats.brokenEncoding) {
+              this.parseWarning =
+                "文字层编码可能损坏：几乎识别不到中文。已尽量清理乱码，建议优先核对题干，或改用 OCR 后的 PDF。";
+              if (this.canKeepImage) this.keepImage = true;
+            } else if (this.cleanStats.lowQuality) {
+              this.parseWarning =
+                "文字层质量较差：已清理 " +
+                this.cleanStats.removed +
+                " 个乱码字符，部分题干仍可能需要手动校对。已为你打开「保留原题截图」。";
+              if (this.canKeepImage) this.keepImage = true;
+            }
           }
           this.progress = 100;
           this.progressText = "解析完成";
@@ -1111,6 +1384,7 @@
         this.progress = 0;
         this.error = "";
         this.parseWarning = "";
+        this.cleanStats = null;
       },
       fmtSize(n) {
         if (!n) return "";
@@ -1139,10 +1413,12 @@
           let images = {};
           if (this.keepImage && this.canKeepImage && this.parsedPdf) {
             const croppedRows = rows.map((r, i) => ({ bbox: r.bbox, pageNo: r.pageNo, index: i }));
+            const cleanPages =
+              this.cleanStats && this.cleanStats.bodyPages ? new Set(this.cleanStats.bodyPages) : null;
             const map = await cropQuestionImages(this.parsedPdf, croppedRows, (p) => {
               this.progress = p.pct;
               this.progressText = "正在生成原题截图 " + p.page + " / " + p.pages;
-            });
+            }, cleanPages);
             images = map;
           }
           const batchId = "b" + Date.now();
@@ -1243,7 +1519,7 @@
           <div class="import-note-icon"><Icon name="scan" :size="20" /></div>
           <div>
             <b>纯浏览器解析，文件不会上传到服务器</b>
-            <p>支持带文字层的 PDF（大多数电子版真题）。扫描版需要先 OCR；数学公式和图形建议勾选「保留原题截图」，显示时以原卷为准。</p>
+            <p>支持带文字层的 PDF（大多数电子版真题）。会自动清理水印、页眉页脚和乱码字符；扫描版需要先 OCR。数学公式和图形建议勾选「保留原题截图」，显示时以原卷为准。</p>
           </div>
         </section>
 
@@ -1325,6 +1601,10 @@
             <div>
               <h2>2. 校对题目 <span>{{ rows.length }} 道</span></h2>
               <p>默认全部导入。题型、考点、难度、分值都可以直接改；低置信度的题建议重点检查。</p>
+              <p class="clean-note" v-if="cleanStats && (cleanStats.watermarkLines || cleanStats.removed >= 5 || cleanStats.junkLines)">
+                <Icon name="check" :size="13" />
+                已过滤 {{ cleanStats.watermarkLines }} 行水印/页眉页脚、{{ cleanStats.removed }} 个乱码字符<span v-if="cleanStats.bodyWatermark">；原题截图会淡化浅色水印</span>
+              </p>
             </div>
             <div class="review-bulk">
               <button class="btn btn-ghost btn-sm" @click="toggleAll(true)">全选</button>
