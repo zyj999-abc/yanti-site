@@ -61,6 +61,14 @@
         });
         return set;
       },
+      prevYear() {
+        const i = this.years.indexOf(this.selectedYear);
+        return i > 0 ? this.years[i - 1] : null;
+      },
+      nextYear() {
+        const i = this.years.indexOf(this.selectedYear);
+        return i >= 0 && i < this.years.length - 1 ? this.years[i + 1] : null;
+      },
       subjectIds() {
         const g = U.groupOf(this.subject.id);
         return g ? g.subjects : [this.subject.id];
@@ -83,6 +91,12 @@
     },
     methods: {
       go: U.go,
+      pad(n) {
+        return String(n || 0).padStart(2, "0");
+      },
+      subjectCode(id) {
+        return { math1: "M-01", math2: "M-02", math3: "M-03", cs408: "CS-408", english1: "E-01", english2: "E-02" }[id] || "A-00";
+      },
       chooseYear(y) {
         U.go("/papers/" + this.subject.id + "?year=" + y);
       },
@@ -116,93 +130,113 @@
       },
     },
     template: `
-    <main class="papers-page">
-      <div class="container">
-        <div class="page-head">
-          <div class="page-head-left">
-            <div class="crumb"><a href="#/" @click.prevent="go('/')">首页</a><span>/</span><span>{{ subject.name }}</span><span>/</span><b>年份试卷</b></div>
-            <h1>{{ subject.name }} · 年份档案</h1>
-            <p>按年份整理真题 · 共 {{ allYearQuestions.length }} 题 / {{ years.length }} 个年份</p>
+    <main class="plate-page papers-page">
+      <div class="container plate-frame">
+        <header class="plate-mast">
+          <div class="plate-no"><span>PLATE</span><b>03</b><em>YEAR ARCHIVE</em></div>
+          <div class="plate-title">
+            <span class="plate-kicker">BOUND VOLUMES / {{ subject.name }}</span>
+            <h1>年份档案</h1>
+            <p>{{ allYearQuestions.length }} 道真题 · {{ years.length }} 个年份 · 按原卷题号编排</p>
           </div>
-          <div class="page-head-actions">
-            <button class="btn btn-ghost" @click="printPaper"><Icon name="printer" :size="16" /> 打印试卷</button>
-            <button class="btn btn-primary" @click="startFull"><Icon name="play" :size="16" /> 整卷练习</button>
+          <div class="plate-actions">
+            <button class="btn btn-ghost" @click="printPaper"><Icon name="printer" :size="15" /> 打印试卷</button>
+            <button class="btn btn-primary" @click="startFull"><Icon name="play" :size="15" /> 整卷练习</button>
           </div>
-        </div>
+        </header>
 
-        <div class="subject-pills">
-          <button v-for="id in subjectIds" :key="id" class="subject-pill" :class="{active: id === subject.id}" @click="switchSubject(id)">
-            {{ D.subjects.find(s => s.id === id).name }}
+        <div class="terrain-switch" role="tablist" aria-label="切换科目">
+          <button v-for="id in subjectIds" :key="id" class="terrain-switch-item" :class="{ active: id === subject.id }" @click="switchSubject(id)">
+            <span>{{ subjectCode(id) }}</span>
+            <b>{{ D.subjects.find(s => s.id === id).name }}</b>
+            <em>{{ U.yearsOf(id).length }} YR</em>
           </button>
-          <span class="subject-pills-note">年份试卷用于整卷模拟，也可以单题精刷</span>
+          <span class="terrain-switch-note">整卷模拟，也可以单题精刷</span>
         </div>
 
-        <div class="papers-layout">
-          <aside class="year-panel card">
-            <h3>选择年份</h3>
-            <button v-for="y in years.slice().reverse()" :key="y" class="year-item" :class="{active: y === selectedYear}" @click="chooseYear(y)">
-              <span>{{ y }} 年</span><i>{{ yearCount[y] || 0 }} 题</i>
-            </button>
-            <p class="year-note">试卷为原创示例题，按年份与题号编排，用于演示整卷刷题流程。</p>
+        <div class="year-ribbon" role="tablist" aria-label="选择年份">
+          <button v-for="(y, i) in years.slice().reverse()" :key="y" class="year-cell" :class="{ active: y === selectedYear }" @click="chooseYear(y)">
+            <span class="yc-index">{{ pad(years.length - i) }}</span>
+            <b>{{ y }}</b>
+            <em>{{ yearCount[y] || 0 }} 题</em>
+          </button>
+        </div>
+
+        <div class="paper-desk">
+          <aside class="paper-spec">
+            <div class="spec-year">{{ selectedYear }}</div>
+            <p class="spec-en">NATIONAL ENTRANCE EXAMINATION / SAMPLE</p>
+            <dl class="spec-list">
+              <div><dt>科目</dt><dd>{{ subject.name }}</dd></div>
+              <div><dt>题量</dt><dd>{{ yearQuestions.length }} 题</dd></div>
+              <div><dt>满分</dt><dd>{{ totalScore }} 分</dd></div>
+              <div><dt>题型</dt><dd>{{ typesInYear.join(' / ') || '—' }}</dd></div>
+              <div><dt>已掌握</dt><dd>{{ answeredCount }} 题</dd></div>
+            </dl>
+            <div class="spec-actions">
+              <button class="btn btn-primary" @click="startFull"><Icon name="play" :size="14" /> 整卷练习</button>
+              <button class="btn btn-ghost" @click="printPaper"><Icon name="printer" :size="14" /> 打印</button>
+            </div>
+            <div class="spec-shift">
+              <button :disabled="!prevYear" @click="yearShift(-1)"><Icon name="chev-left" :size="13" /> {{ prevYear || '—' }}</button>
+              <button :disabled="!nextYear" @click="yearShift(1)">{{ nextYear || '—' }} <Icon name="chev-right" :size="13" /></button>
+            </div>
+            <p class="spec-note">示例卷：按年份与题号编排，用于演示整卷刷题与打印流程。</p>
           </aside>
 
-          <div class="paper-main">
-            <section class="paper-head-card card">
+          <section class="paper-sheet">
+            <header class="paper-sheet-head">
               <div>
-                <h1>{{ selectedYear }} 年全国硕士研究生招生考试<br />{{ subject.name }}（示例卷）</h1>
-                <div class="paper-meta">
-                  <span class="chip">共 {{ yearQuestions.length }} 题</span>
-                  <span class="chip">满分 {{ totalScore }} 分</span>
-                  <span class="chip">{{ typesInYear.join(' / ') }}</span>
-                  <span class="chip">已掌握 {{ answeredCount }} 题</span>
-                </div>
+                <span class="ps-kicker">PAPER SPECIMEN / {{ subject.name }}</span>
+                <h2>{{ selectedYear }} 年全国硕士研究生招生考试<br />{{ subject.name }}（示例卷）</h2>
               </div>
-              <div class="paper-head-actions">
-                <button class="btn btn-ghost btn-sm" @click="yearShift(-1)"><Icon name="chev-left" :size="14" /> 上一年</button>
-                <button class="btn btn-ghost btn-sm" @click="yearShift(1)">下一年 <Icon name="chev-right" :size="14" /></button>
+              <div class="ps-stamp"><b>{{ selectedYear }}</b><span>ATLAS · SAMPLE</span><em>{{ yearQuestions.length }} Q / {{ totalScore }} P</em></div>
+            </header>
+
+            <div class="paper-meta-line">
+              <span>{{ yearQuestions.length }} QUESTIONS</span>
+              <span>{{ totalScore }} POINTS</span>
+              <span>{{ typesInYear.join(' / ') || 'NO DATA' }}</span>
+              <span>已掌握 {{ answeredCount }}</span>
+            </div>
+
+            <section class="answer-grid-section">
+              <header class="sheet-subhead">
+                <span class="ps-kicker">01 / ANSWER GRID</span>
+                <span>点击题号直接进入单题</span>
+              </header>
+              <div class="score-grid" v-if="yearQuestions.length">
+                <a v-for="q in yearQuestions" :key="q.id" class="score-cell" :class="{ done: S.mastery[q.id] }" :href="'#/question/' + q.id" @click.prevent="openQuestion(q)" :title="q.typeName + ' · ' + q.kpName">
+                  <b>{{ pad(q.indexNo) }}</b>
+                  <span>{{ q.typeName.slice(0, 2) }}</span>
+                </a>
+              </div>
+              <p class="score-empty" v-else>该年份暂无题目。</p>
+              <div class="score-legend">
+                <span><i class="on"></i>已标记掌握</span>
+                <span><i></i>未作答</span>
+                <span class="score-legend-note">GRID = 原卷题号</span>
               </div>
             </section>
 
-            <section class="paper-section card">
-              <div class="paper-section-head">
-                <h3><Icon name="grid" :size="15" /> 题号导航</h3>
-                <span style="font-size:11.5px;color:var(--faint)">点击题号直接进入题目</span>
-              </div>
-              <div class="qnum-grid" v-if="yearQuestions.length">
-                <a v-for="q in yearQuestions" :key="q.id" class="qnum" :class="{answered: S.mastery[q.id]}" :href="'#/question/' + q.id" @click.prevent="openQuestion(q)" :title="q.typeName + ' · ' + q.kpName">
-                  {{ q.indexNo }}<span class="qnum-dot" v-if="S.mastery[q.id]"></span>
+            <section class="paper-ledger">
+              <header class="sheet-subhead">
+                <span class="ps-kicker">02 / QUESTION LEDGER</span>
+                <button class="sheet-link" @click="startFull"><Icon name="play" :size="12" /> 从第 1 题开始</button>
+              </header>
+              <div class="paper-q-list" v-if="yearQuestions.length">
+                <a v-for="q in yearQuestions" :key="q.id" class="paper-q-row" :href="'#/question/' + q.id" @click.prevent="openQuestion(q)">
+                  <span class="pq-no">{{ pad(q.indexNo) }}</span>
+                  <span class="pq-main"><b>{{ q.kpName }}</b><span>{{ q.typeName }} · {{ q.score }} 分 · {{ q.difficultyName }}</span></span>
+                  <span class="pq-section">{{ q.typeName }}</span>
+                  <span class="pq-mark" v-if="S.mastery[q.id]">已掌握</span>
+                  <span class="pq-mark empty" v-else>—</span>
+                  <Icon name="arrow-right" :size="14" />
                 </a>
               </div>
-              <div class="empty-state" v-else style="padding:24px">
-                <p>该年份暂无题目。</p>
-              </div>
-              <div class="paper-legend">
-                <span><i></i>已标记掌握</span>
-                <span><i class="gray"></i>未作答</span>
-              </div>
+              <p class="score-empty" v-else>该年份暂无题目，换一年看看。</p>
             </section>
-
-            <section class="paper-section card">
-              <div class="paper-section-head">
-                <h3><Icon name="list" :size="15" /> 题目清单</h3>
-                <button class="btn btn-soft btn-sm" @click="startFull"><Icon name="play" :size="13" /> 从第 1 题开始</button>
-              </div>
-              <div class="paper-list" v-if="yearQuestions.length">
-                <a class="paper-list-item" v-for="q in yearQuestions" :key="q.id" :href="'#/question/' + q.id" @click.prevent="openQuestion(q)">
-                  <span class="no">{{ q.indexNo }}</span>
-                  <div class="txt">
-                    <b>{{ q.kpName }}</b>
-                    <span>{{ q.typeName }} · {{ q.score }} 分 · {{ q.difficultyName }}</span>
-                  </div>
-                  <span class="tag tag-type" :class="'type-' + q.type">{{ q.typeName }}</span>
-                  <Icon name="chev-right" :size="15" class="go-icon" />
-                </a>
-              </div>
-              <div class="empty-state" v-else style="padding:24px">
-                <p>该年份暂无题目，换一年看看。</p>
-              </div>
-            </section>
-          </div>
+          </section>
         </div>
       </div>
     </main>`,
@@ -214,6 +248,7 @@
       return {
         S: S,
         U: U,
+        typeNames: TYPE_NAMES,
         filters: { subject: "all", type: "all", keyword: "" },
         visible: 12,
       };
@@ -255,6 +290,13 @@
       pageDesc() {
         return this.tab === "fav" ? "收藏的好题都在这里，随时回看解析" : "做错的题自动收进来，集中回刷更高效";
       },
+      typeFilterOptions() {
+        const out = [];
+        this.allItems.forEach((q) => {
+          if (out.indexOf(q.type) < 0) out.push(q.type);
+        });
+        return out;
+      },
     },
     watch: {
       tab() {
@@ -273,6 +315,9 @@
     },
     methods: {
       go: U.go,
+      pad(n) {
+        return String(n || 0).padStart(2, "0");
+      },
       switchTab(tab) {
         U.go("/wrong-book" + (tab === "fav" ? "?tab=fav" : ""));
       },
@@ -300,70 +345,89 @@
       },
     },
     template: `
-    <main class="wrong-page">
-      <div class="container">
-        <div class="page-head">
-          <div class="page-head-left">
-            <div class="crumb"><a href="#/" @click.prevent="go('/')">首页</a><span>/</span><b>错题本</b></div>
+    <main class="plate-page wrong-page">
+      <div class="container plate-frame">
+        <header class="plate-mast">
+          <div class="plate-no"><span>PLATE</span><b>06</b><em>ERROR LOG</em></div>
+          <div class="plate-title">
+            <span class="plate-kicker">CORRECTIONS / {{ tab === 'fav' ? 'FAVORITES' : 'MISTAKE LEDGER' }}</span>
             <h1>{{ pageTitle }}</h1>
-            <p>{{ pageDesc }} · 共 {{ allItems.length }} 题</p>
+            <p>{{ pageDesc }} · 共 {{ allItems.length }} 条记录</p>
           </div>
-          <div class="page-head-actions">
-            <button class="btn btn-primary" @click="startAll" :disabled="!filtered.length"><Icon name="play" :size="16" /> 重刷这 {{ filtered.length }} 题</button>
+          <div class="plate-actions">
+            <button class="btn btn-primary" @click="startAll" :disabled="!filtered.length"><Icon name="play" :size="15" /> 重刷这 {{ filtered.length }} 题</button>
           </div>
+        </header>
+
+        <div class="log-tabs" role="tablist">
+          <button class="log-tab" :class="{ active: tab === 'wrong' }" @click="switchTab('wrong')">
+            <span>01</span><b>错题本</b><em>{{ S.wrong.length }}</em>
+          </button>
+          <button class="log-tab" :class="{ active: tab === 'fav' }" @click="switchTab('fav')">
+            <span>02</span><b>收藏夹</b><em>{{ S.favorites.length }}</em>
+          </button>
+          <span class="log-tabs-note">LOCAL / 记录只保存在当前浏览器</span>
         </div>
 
-        <div class="wrong-toolbar">
-          <div class="filter-group">
-            <button class="filter-chip mode" :class="{active: tab === 'wrong'}" @click="switchTab('wrong')">错题本 {{ S.wrong.length }}</button>
-            <button class="filter-chip mode" :class="{active: tab === 'fav'}" @click="switchTab('fav')">收藏夹 {{ S.favorites.length }}</button>
-          </div>
-          <div class="filter-group">
-            <select class="select-input" v-model="filters.subject">
-              <option value="all">全部科目</option>
-              <option v-for="s in subjectOptions" :key="s.id" :value="s.id">{{ s.name }}</option>
-            </select>
-            <select class="select-input" v-model="filters.type">
-              <option value="all">全部题型</option>
-              <option v-for="t in typeFilterOptions" :key="t" :value="t">{{ typeNames[t] }}</option>
-            </select>
-            <input class="text-input" v-model="filters.keyword" placeholder="搜索题干 / 考点" style="width:160px" />
-          </div>
+        <div class="log-filter">
+          <label><span>科目</span><select class="bare-select" v-model="filters.subject">
+            <option value="all">全部科目</option>
+            <option v-for="s in subjectOptions" :key="s.id" :value="s.id">{{ s.name }}</option>
+          </select></label>
+          <label><span>题型</span><select class="bare-select" v-model="filters.type">
+            <option value="all">全部题型</option>
+            <option v-for="t in typeFilterOptions" :key="t" :value="t">{{ typeNames[t] }}</option>
+          </select></label>
+          <label class="log-search"><span>检索</span><input class="bare-input" v-model="filters.keyword" placeholder="题干 / 考点 / 年份" /></label>
+          <button class="log-reset" v-if="filters.subject !== 'all' || filters.type !== 'all' || filters.keyword" @click="resetFilters">清除筛选</button>
+          <span class="log-count">{{ filtered.length }} ENTRIES</span>
         </div>
 
-        <div class="wrong-list" v-if="visibleItems.length" v-math>
-          <article class="wrong-item card" v-for="q in visibleItems" :key="q.id">
-            <div class="wrong-main">
-              <div class="wrong-meta">
-                <span>{{ q.subjectName }}</span><span>·</span>
-                <span>{{ q.year }} 年 第 {{ q.indexNo }} 题</span><span>·</span>
-                <span>{{ q.kpName }}</span>
+        <section class="correction-sheet" v-math>
+          <header class="correction-head">
+            <span class="ps-kicker">LEDGER / {{ tab === 'fav' ? 'FAVORITE QUESTIONS' : 'MISTAKES TO REVISIT' }}</span>
+            <span class="correction-head-note">按最近加入排序</span>
+          </header>
+
+          <div class="correction-list" v-if="visibleItems.length">
+            <article class="correction-row" v-for="(q, i) in visibleItems" :key="q.id">
+              <div class="cr-no">{{ pad(i + 1) }}</div>
+              <div class="cr-main">
+                <div class="cr-meta">
+                  <span>{{ q.subjectName }}</span><i>·</i>
+                  <span>{{ q.year }} 年 第 {{ q.indexNo }} 题</span><i>·</i>
+                  <span>{{ q.kpName }}</span>
+                </div>
+                <a :href="'#/question/' + q.id" @click.prevent="openQuestion(q)" class="cr-stem" v-html="U.fmt(q.stem)"></a>
+                <div class="cr-tags">
+                  <span>{{ q.typeName }}</span><i>·</i>
+                  <span>{{ q.difficultyName }}</span>
+                  <b v-if="S.mastery[q.id]"><Icon name="check-circle" :size="11" /> {{ ['','简单','一般','不会'][S.mastery[q.id]] }}</b>
+                  <b class="none" v-else>未标记掌握</b>
+                </div>
               </div>
-              <a :href="'#/question/' + q.id" @click.prevent="openQuestion(q)" class="wrong-stem" v-html="U.fmt(q.stem)"></a>
-              <div class="wrong-foot">
-                <span class="tag tag-type" :class="'type-' + q.type">{{ q.typeName }}</span>
-                <span class="diff" :class="'diff-' + q.difficulty">{{ q.difficultyName }}</span>
-                <span v-if="S.mastery[q.id]" style="font-size:11px;color:#0f7a38;display:inline-flex;align-items:center;gap:3px"><Icon name="check-circle" :size="12" /> {{ ['','简单','一般','不会'][S.mastery[q.id]] }}</span>
-                <span v-else style="font-size:11px;color:var(--faint)">未标记掌握</span>
+              <div class="cr-side">
+                <span class="cr-state" :class="{ done: S.mastery[q.id] }">{{ tab === 'fav' ? 'COLLECTED' : 'REVISIT' }}</span>
+                <button class="cr-open" @click="openQuestion(q)">查看 <Icon name="arrow-right" :size="12" /></button>
+                <button class="cr-remove" :title="tab === 'fav' ? '取消收藏' : '移出错题本'" @click="remove(q)"><Icon :name="tab === 'fav' ? 'star' : 'trash'" :size="14" /></button>
               </div>
-            </div>
-            <div class="wrong-actions">
-              <button class="icon-btn" title="查看题目" @click="openQuestion(q)"><Icon name="arrow-right" :size="16" /></button>
-              <button class="icon-btn" :title="tab === 'fav' ? '取消收藏' : '移出错题本'" @click="remove(q)"><Icon :name="tab === 'fav' ? 'star' : 'trash'" :size="16" /></button>
-            </div>
-          </article>
-        </div>
+            </article>
+          </div>
 
-        <div class="load-more" v-if="filtered.length > visible">
-          <button class="btn btn-ghost" @click="visible += 12">加载更多（还有 {{ filtered.length - visible }} 题）<Icon name="chev-down" :size="15" /></button>
-        </div>
+          <div class="correction-empty" v-else>
+            <div class="ce-index">{{ allItems.length ? '00' : '—' }}</div>
+            <span class="ps-kicker">{{ allItems.length ? 'NO MATCH' : (tab === 'fav' ? 'NO FAVORITES YET' : 'LOG IS CLEAR') }}</span>
+            <h3>{{ allItems.length ? '这些筛选条件下没有题目' : (tab === 'fav' ? '还没有收藏题目' : '错题本还是空的') }}</h3>
+            <p>{{ allItems.length ? '换一个科目或题型试试。' : (tab === 'fav' ? '刷题时点击题目右上角的星标，就能把好题收进来。' : '答错的题会自动进入这里；也可以手动标记，方便集中回刷。') }}</p>
+            <div class="ce-actions">
+              <button class="btn btn-ghost" v-if="allItems.length" @click="resetFilters">清除筛选</button>
+              <button class="btn btn-primary" v-else @click="go('/dashboard/math1')">去刷题</button>
+            </div>
+          </div>
+        </section>
 
-        <div class="empty-state card" v-if="!filtered.length">
-          <span class="empty-icon"><Icon :name="tab === 'fav' ? 'star' : 'flag'" :size="28" /></span>
-          <h3>{{ allItems.length ? '这些筛选条件下没有题目' : (tab === 'fav' ? '还没有收藏题目' : '错题本还是空的') }}</h3>
-          <p>{{ allItems.length ? '换一个科目或题型试试。' : (tab === 'fav' ? '刷题时点击题目右上角的星标，就能把好题收进来。' : '答错的题会自动进入这里；也可以手动标记，方便集中回刷。') }}</p>
-          <button class="btn btn-ghost" v-if="allItems.length" @click="resetFilters">清除筛选</button>
-          <button class="btn btn-primary" v-else @click="go('/dashboard/math1')">去刷题</button>
+        <div class="log-more" v-if="filtered.length > visible">
+          <button class="btn btn-ghost btn-sm" @click="visible += 12">加载更多 · 还有 {{ filtered.length - visible }} 条 <Icon name="chev-down" :size="14" /></button>
         </div>
       </div>
     </main>`,
@@ -577,6 +641,12 @@
     },
     methods: {
       go: U.go,
+      pad(n) {
+        return String(n || 0).padStart(2, "0");
+      },
+      sectionPoints(group) {
+        return group.items.reduce((a, x) => a + (x.it.score != null ? x.it.score : x.q.score), 0);
+      },
       matchSection(q, sec) {
         if (sec.match.indexOf(q.type) >= 0) return true;
         const kp = q.kpId || "";
@@ -749,171 +819,200 @@
       },
     },
     template: `
-    <main class="assembly-page">
-      <div class="container">
-        <div class="page-head">
-          <div class="page-head-left">
-            <div class="crumb"><a href="#/" @click.prevent="go('/')">首页</a><span>/</span><b>智能组卷</b></div>
-            <h1>智能组卷</h1>
+    <main class="plate-page assembly-page">
+      <div class="container plate-frame">
+        <header class="plate-mast">
+          <div class="plate-no"><span>PLATE</span><b>04</b><em>PAPER BUILDER</em></div>
+          <div class="plate-title">
+            <span class="plate-kicker">DRAFTING TABLE / 2026 SYLLABUS</span>
+            <h1>组卷台</h1>
             <p>按最新考研题型结构拼整卷，或按考点自由抽题；支持易 / 中 / 难筛选</p>
           </div>
-          <div class="page-head-actions">
+          <div class="plate-actions">
             <button class="btn btn-ghost" @click="go('/import')"><Icon name="upload" :size="15" /> 导入 PDF</button>
           </div>
-        </div>
+        </header>
 
-        <div class="assembly-layout">
-          <section class="assembly-form card">
-            <h2>组卷条件</h2>
-            <p>标准卷按 2026 考研题型与分值生成；题库不足时会提示并放宽难度补题。</p>
+        <div class="assembly-desk">
+          <aside class="assembly-spec">
+            <header class="spec-head"><span>SPECIFICATION</span><b>组卷参数</b><em>{{ template ? 'STANDARD' : 'FREE' }}</em></header>
 
-            <div class="form-item">
-              <label>卷型</label>
-              <select class="select-input" v-model="paperType">
-                <option v-for="t in paperTypes" :key="t.value" :value="t.value">{{ t.label }}</option>
-              </select>
-            </div>
-
-            <div class="form-item">
-              <label>科目</label>
-              <select class="select-input" v-model="subjectId" :disabled="!!template">
-                <option v-for="s in subjectOptions" :key="s.id" :value="s.id">{{ s.name }}</option>
-                <option v-if="!template" value="all">全科混合</option>
-              </select>
-              <span class="field-hint" v-if="importedCount">题库含 {{ importedCount }} 道 PDF 导入题</span>
-            </div>
-
-            <div class="form-item" v-if="template">
-              <label>标准卷结构</label>
-              <div class="tpl-structure">
-                <div class="tpl-sec" v-for="x in templateSections" :key="x.sec.key">
-                  <span>{{ x.sec.name }}</span>
-                  <b>{{ x.sec.count }} 题 · {{ x.sec.scores ? x.sec.scores.reduce((a,b)=>a+b,0) : x.sec.count * x.sec.score }} 分</b>
-                  <em :class="{bad: !x.exact, warn: x.exact && !x.enough}">{{ x.exact ? '可用 ' + x.exact : '同难度不足' }} / {{ x.sec.count }}{{ x.exact < x.sec.count && x.fallback ? ' · 可放宽' : '' }}</em>
-                </div>
-              </div>
-              <p class="tpl-tip" v-if="templateShortage.length">有 {{ templateShortage.length }} 个题型当前题库不足，生成时会尽量放宽难度或留空。</p>
-            </div>
-
-            <div class="form-item">
-              <label>难度</label>
-              <div class="segmented">
-                <button v-for="d in diffFilters" :key="d.value" :class="{on: difficulty === d.value}" @click="difficulty = d.value">{{ d.label }}</button>
-              </div>
-              <span class="field-hint">标准卷也按此难度抽题；不足时自动放宽并在预览中标出。</span>
-            </div>
-
-            <div class="form-item">
-              <label>题源</label>
-              <select class="select-input" v-model="source">
-                <option value="all">全部题目（内置 + 导入）</option>
-                <option value="builtin">仅内置示例题</option>
-                <option value="imported">仅我导入的 PDF 题</option>
-              </select>
-            </div>
-
-            <div class="form-item" v-if="!template && subject">
-              <label>考点范围（不选则全科）</label>
-              <div class="kp-select-box">
-                <label v-for="item in kpNodes" :key="item.node.id" class="kp-select-row" :class="'depth-' + item.depth">
-                  <input type="checkbox" :checked="checkedKps.indexOf(item.node.id) >= 0" @change="toggleKp(item.node.id)" />
-                  <span style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis">{{ item.node.name }}</span>
-                </label>
-              </div>
-              <div style="display:flex;gap:10px;margin-top:6px">
-                <button class="btn btn-sm btn-ghost" style="height:26px" @click="allKps">选大类</button>
-                <button class="btn btn-sm btn-ghost" style="height:26px" @click="clearKps">清空</button>
-                <span class="field-hint" style="margin:0;line-height:26px">已选 {{ checkedKps.length }} 项</span>
-              </div>
-            </div>
-
-            <div class="form-item" v-if="!template">
-              <label>题型</label>
-              <div class="check-chips">
-                <button v-for="t in freeTypeOptions" :key="t" class="check-chip" :class="{on: types.indexOf(t) >= 0}" @click="toggleType(t)">{{ typeNames[t] }}</button>
-              </div>
-            </div>
-
-            <div class="form-row">
-              <div class="form-item">
-                <label>年份</label>
-                <select class="select-input" v-model="year">
-                  <option value="all">全部年份</option>
-                  <option v-for="y in years.slice().reverse()" :key="y" :value="y">{{ y }} 年</option>
+            <div class="spec-block">
+              <span class="spec-no">01</span>
+              <div class="spec-field">
+                <label>卷型</label>
+                <select class="bare-select" v-model="paperType">
+                  <option v-for="t in paperTypes" :key="t.value" :value="t.value">{{ t.label }}</option>
                 </select>
               </div>
-              <div class="form-item">
-                <label>试卷名称</label>
-                <input class="text-input" v-model="title" maxlength="30" placeholder="留空自动命名" />
+            </div>
+
+            <div class="spec-block">
+              <span class="spec-no">02</span>
+              <div class="spec-field">
+                <label>科目</label>
+                <select class="bare-select" v-model="subjectId" :disabled="!!template">
+                  <option v-for="s in subjectOptions" :key="s.id" :value="s.id">{{ s.name }}</option>
+                  <option v-if="!template" value="all">全科混合</option>
+                </select>
+                <span class="spec-hint" v-if="importedCount">题库含 {{ importedCount }} 道 PDF 导入题</span>
               </div>
             </div>
 
-            <div class="form-item" v-if="!template">
-              <label>题量</label>
-              <div class="segmented">
-                <button v-for="n in [10,15,20,30,0]" :key="n" :class="{on: count === n}" @click="count = n">{{ n === 0 ? '全部' : n + ' 题' }}</button>
-              </div>
-            </div>
-
-            <p class="modal-hint" style="margin-bottom:13px" v-if="!template">当前条件共 {{ pool.length }} 道可用题目，将随机抽取 {{ takeCount }} 道。</p>
-            <p class="modal-hint" style="margin-bottom:13px" v-else>标准卷将生成 {{ template.sections.reduce((a,s)=>a+s.count,0) }} 个题位，总分 {{ template.total }} 分。</p>
-            <button class="btn btn-primary btn-block btn-lg" @click="generate"><Icon name="spark" :size="16" /> 生成试卷</button>
-          </section>
-
-          <div class="assembly-preview">
-            <section class="preview-head card">
-              <div>
-                <h2>{{ title.trim() || defaultTitle }}</h2>
-                <p v-if="preview.length">共 {{ preview.length }} 题 · 合计 {{ previewScore }} 分 · {{ U.timeStr(Date.now()) }}</p>
-                <p v-else>{{ template ? '选择难度和题源，点击「生成试卷」按标准结构组卷' : '在左侧设置条件，点击「生成试卷」预览题目' }}</p>
-              </div>
-              <div class="preview-actions">
-                <button class="btn btn-ghost btn-sm" @click="print" :disabled="!preview.length"><Icon name="printer" :size="14" /> 打印</button>
-                <button class="btn btn-ghost btn-sm" @click="save" :disabled="!preview.length"><Icon name="bookmark" :size="14" /> 保存</button>
-                <button class="btn btn-primary btn-sm" @click="start" :disabled="!preview.length"><Icon name="play" :size="14" /> 开始练习</button>
-              </div>
-            </section>
-
-            <section class="paper-section card" v-if="previewQuestions.length">
-              <div class="paper-section-head">
-                <h3><Icon name="list" :size="15" /> 试卷预览</h3>
-                <span style="font-size:11.5px;color:var(--faint)">可移除不想做的题</span>
-              </div>
-              <div class="tpl-preview" v-for="group in previewSections" :key="group.key">
-                <div class="tpl-preview-head" v-if="group.name">
-                  <b>{{ group.name }}</b>
-                  <span>{{ group.items.length }} 题 · {{ group.items.reduce((a,x)=>a+(x.it.score!=null?x.it.score:x.q.score),0) }} 分</span>
-                </div>
-                <div class="assembled-list">
-                  <div class="assembled-item" v-for="row in group.items" :key="row.q.id">
-                    <span class="no">{{ row.index + 1 }}</span>
-                    <span class="tag tag-type" :class="'type-' + row.q.type">{{ row.q.typeName }}</span>
-                    <span class="stem" :title="plain(row.q.stem)">{{ row.q.year }} · {{ row.q.kpName }} · {{ row.q.typeName }} · {{ row.it.score != null ? row.it.score : row.q.score }} 分</span>
-                    <span class="loose-tag" v-if="row.it.loose">难度放宽</span>
-                    <button class="icon-btn" style="width:27px;height:27px" title="移除" @click="removePreview(row.index)"><Icon name="x" :size="13" /></button>
+            <div class="spec-block" v-if="template">
+              <span class="spec-no">03</span>
+              <div class="spec-field">
+                <label>标准卷结构</label>
+                <div class="tpl-ledger">
+                  <div class="tpl-row" v-for="x in templateSections" :key="x.sec.key">
+                    <div><b>{{ x.sec.name }}</b><span>{{ x.sec.count }} 题 · {{ x.sec.scores ? x.sec.scores.reduce((a,b)=>a+b,0) : x.sec.count * x.sec.score }} 分</span></div>
+                    <em :class="{ bad: !x.exact, warn: x.exact && !x.enough }">{{ x.exact ? '可用 ' + x.exact : '不足' }}/{{ x.sec.count }}</em>
                   </div>
                 </div>
+                <p class="spec-warn" v-if="templateShortage.length">有 {{ templateShortage.length }} 个题型题库不足，生成时会尽量放宽或留空。</p>
+              </div>
+            </div>
+
+            <div class="spec-block">
+              <span class="spec-no">{{ template ? '04' : '03' }}</span>
+              <div class="spec-field">
+                <label>难度</label>
+                <div class="spec-segs">
+                  <button v-for="d in diffFilters" :key="d.value" :class="{ on: difficulty === d.value }" @click="difficulty = d.value">{{ d.label }}</button>
+                </div>
+                <span class="spec-hint">标准卷也按此难度抽题；不足时自动放宽并在校样中标出。</span>
+              </div>
+            </div>
+
+            <div class="spec-block">
+              <span class="spec-no">{{ template ? '05' : '04' }}</span>
+              <div class="spec-field">
+                <label>题源</label>
+                <select class="bare-select" v-model="source">
+                  <option value="all">全部题目（内置 + 导入）</option>
+                  <option value="builtin">仅内置示例题</option>
+                  <option value="imported">仅我导入的 PDF 题</option>
+                </select>
+              </div>
+            </div>
+
+            <div class="spec-block" v-if="!template && subject">
+              <span class="spec-no">05</span>
+              <div class="spec-field">
+                <label>考点范围 <span v-if="checkedKps.length">· 已选 {{ checkedKps.length }}</span></label>
+                <div class="kp-select-box">
+                  <label v-for="item in kpNodes" :key="item.node.id" class="kp-select-row" :class="'depth-' + item.depth">
+                    <input type="checkbox" :checked="checkedKps.indexOf(item.node.id) >= 0" @change="toggleKp(item.node.id)" />
+                    <span>{{ item.node.name }}</span>
+                  </label>
+                </div>
+                <div class="spec-inline">
+                  <button @click="allKps">选大类</button>
+                  <button @click="clearKps">清空</button>
+                </div>
+              </div>
+            </div>
+
+            <div class="spec-block" v-if="!template">
+              <span class="spec-no">06</span>
+              <div class="spec-field">
+                <label>题型</label>
+                <div class="spec-chips">
+                  <button v-for="t in freeTypeOptions" :key="t" :class="{ on: types.indexOf(t) >= 0 }" @click="toggleType(t)">{{ typeNames[t] }}</button>
+                </div>
+              </div>
+            </div>
+
+            <div class="spec-block">
+              <span class="spec-no">{{ template ? '06' : '07' }}</span>
+              <div class="spec-field spec-field-pair">
+                <div><label>年份</label><select class="bare-select" v-model="year">
+                  <option value="all">全部年份</option>
+                  <option v-for="y in years.slice().reverse()" :key="y" :value="y">{{ y }} 年</option>
+                </select></div>
+                <div><label>试卷名称</label><input class="bare-input" v-model="title" maxlength="30" placeholder="留空自动命名" /></div>
+              </div>
+            </div>
+
+            <div class="spec-block" v-if="!template">
+              <span class="spec-no">08</span>
+              <div class="spec-field">
+                <label>题量</label>
+                <div class="spec-segs">
+                  <button v-for="n in [10,15,20,30,0]" :key="n" :class="{ on: count === n }" @click="count = n">{{ n === 0 ? '全部' : n + ' 题' }}</button>
+                </div>
+              </div>
+            </div>
+
+            <div class="spec-submit">
+              <p v-if="!template">当前条件 <b>{{ pool.length }}</b> 道可用 · 抽取 {{ takeCount }} 道</p>
+              <p v-else>标准卷 {{ template.sections.reduce((a,s)=>a+s.count,0) }} 个题位 · 总分 {{ template.total }} 分</p>
+              <button class="btn btn-primary btn-block" @click="generate"><Icon name="spark" :size="15" /> 生成试卷</button>
+            </div>
+          </aside>
+
+          <section class="assembly-proof">
+            <header class="proof-head">
+              <div class="proof-title">
+                <span class="ps-kicker">PROOF / 试卷校样</span>
+                <h2>{{ title.trim() || defaultTitle }}</h2>
+                <p v-if="preview.length">共 {{ preview.length }} 题 · 合计 {{ previewScore }} 分 · {{ U.timeStr(Date.now()) }}</p>
+                <p v-else>{{ template ? '选择难度与题源，按 2026 标准结构生成校样' : '在左侧设定条件，生成一张自由拼合的校样' }}</p>
+              </div>
+              <div class="proof-status" :class="{ ready: preview.length }">
+                <span>{{ preview.length ? 'READY' : 'DRAFT' }}</span>
+                <b>{{ pad(preview.length) }}</b>
+                <em>Q · {{ previewScore }} P</em>
+              </div>
+            </header>
+
+            <div class="proof-toolbar" v-if="preview.length">
+              <span>{{ preview.length }} 题 · {{ previewScore }} 分</span>
+              <div class="proof-actions">
+                <button class="proof-action" @click="print"><Icon name="printer" :size="13" /> 打印</button>
+                <button class="proof-action" @click="save"><Icon name="bookmark" :size="13" /> 保存</button>
+                <button class="proof-action primary" @click="start"><Icon name="play" :size="13" /> 开始练习</button>
+              </div>
+            </div>
+
+            <div class="proof-body" v-if="previewQuestions.length">
+              <section class="proof-section" v-for="group in previewSections" :key="group.key">
+                <header class="proof-section-head">
+                  <b>{{ group.name || '自由组题' }}</b>
+                  <span>{{ group.items.length }} 题 · {{ sectionPoints(group) }} 分</span>
+                </header>
+                <div class="proof-row" v-for="row in group.items" :key="row.q.id">
+                  <span class="pr-no">{{ pad(row.index + 1) }}</span>
+                  <span class="pr-main">
+                    <b>{{ row.q.kpName }}</b>
+                    <span>{{ row.q.year }} 年 · {{ row.q.typeName }} · {{ row.it.score != null ? row.it.score : row.q.score }} 分</span>
+                  </span>
+                  <span class="pr-loose" v-if="row.it.loose">难度放宽</span>
+                  <button class="pr-remove" title="移除此题" @click="removePreview(row.index)"><Icon name="x" :size="13" /></button>
+                </div>
+              </section>
+            </div>
+
+            <div class="proof-empty" v-else>
+              <div class="pe-cross" aria-hidden="true"><i></i><i></i><span></span></div>
+              <span class="ps-kicker">NO PROOF YET / 待生成</span>
+              <h3>校样还是空白</h3>
+              <p>{{ template ? '题库越足，标准卷越完整；缺题时先导入对应科目的 PDF。' : '条件越具体，组出来的卷子越贴近你的薄弱点。' }}</p>
+              <button class="proof-action" @click="go('/import')"><Icon name="upload" :size="13" /> 去导入题库</button>
+            </div>
+
+            <section class="proof-records" v-if="S.papers.length">
+              <header class="proof-section-head">
+                <b>组卷记录</b><span>{{ S.papers.length }} 份 · 保存在本机</span>
+              </header>
+              <div class="record-row" v-for="p in S.papers" :key="p.id">
+                <span class="rr-date">{{ U.relTime(p.at) }}</span>
+                <span class="rr-main"><b>{{ p.title }}</b><em>{{ p.count }} 题 · {{ p.score }} 分</em></span>
+                <button class="pr-action" title="开始练习" @click="startRecord(p)"><Icon name="play" :size="13" /></button>
+                <button class="pr-action" title="删除" @click="removeRecord(p)"><Icon name="trash" :size="13" /></button>
               </div>
             </section>
-
-            <section class="empty-state card" v-else style="padding:40px 22px">
-              <span class="empty-icon"><Icon name="layers" :size="28" /></span>
-              <h3>还没有生成试卷</h3>
-              <p>{{ template ? '先导入对应科目的 PDF，题库越足，标准卷越完整。' : '条件越具体，组出来的卷子越贴近你的薄弱点。' }}</p>
-              <button class="btn btn-ghost btn-sm" style="margin-top:12px" @click="go('/import')"><Icon name="upload" :size="14" /> 去导入题库</button>
-            </section>
-
-            <section class="records-card card" v-if="S.papers.length">
-              <h3><Icon name="folder" :size="15" /> 组卷记录 <span style="font-weight:500;font-size:11px;color:var(--faint)">（{{ S.papers.length }}）</span></h3>
-              <div class="record-item" v-for="p in S.papers" :key="p.id">
-                <span class="ico" style="width:28px;height:28px;border-radius:4px;background:var(--lime-soft);color:var(--forest);display:flex;align-items:center;justify-content:center;flex:none"><Icon name="book" :size="14" /></span>
-                <b>{{ p.title }}</b>
-                <span>{{ p.count }} 题 · {{ U.relTime(p.at) }}</span>
-                <button class="icon-btn" title="开始练习" @click="startRecord(p)"><Icon name="play" :size="14" /></button>
-                <button class="icon-btn" title="删除" @click="removeRecord(p)"><Icon name="trash" :size="14" /></button>
-              </div>
-            </section>
-          </div>
+          </section>
         </div>
       </div>
     </main>`,
@@ -982,6 +1081,9 @@
     },
     methods: {
       go: U.go,
+      pad(n) {
+        return String(n || 0).padStart(2, "0");
+      },
       openLogin() {
         S.loginOpen = true;
       },
@@ -1066,133 +1168,139 @@
       },
     },
     template: `
-    <main class="profile-page">
-      <div class="container">
-        <div class="page-head">
-          <div class="page-head-left">
-            <div class="crumb"><a href="#/" @click.prevent="go('/')">首页</a><span>/</span><b>学习档案</b></div>
+    <main class="plate-page profile-page">
+      <div class="container plate-frame">
+        <header class="plate-mast">
+          <div class="plate-no"><span>PLATE</span><b>09</b><em>FIELD RECORD</em></div>
+          <div class="plate-title">
+            <span class="plate-kicker">PERSONAL ARCHIVE / LOCAL ONLY</span>
             <h1>学习档案</h1>
             <p>所有数据仅保存在当前浏览器 · 换设备不会同步</p>
           </div>
-        </div>
+        </header>
 
-        <section class="profile-head card">
-          <div class="profile-avatar">{{ initial }}</div>
-          <div class="profile-id">
+        <section class="record-identity">
+          <div class="record-avatar">{{ initial }}</div>
+          <div class="record-id">
             <div v-if="!editing">
-              <h1>{{ S.user.name || '访客研友' }}</h1>
+              <span class="ps-kicker">FIELD RECORD OWNER</span>
+              <h2>{{ S.user.name || '访客研友' }}</h2>
               <p>{{ S.user.name ? (S.user.createdAt ? '加入于 ' + U.dateStr(S.user.createdAt) : '本地昵称') : '设置一个昵称，让学习记录更有归属感' }}</p>
             </div>
-            <div v-else style="display:flex;gap:7px;align-items:center;flex-wrap:wrap">
-              <input class="text-input" v-model="nameInput" maxlength="12" placeholder="输入昵称（12 字内）" style="height:36px;width:190px" @keyup.enter="saveName" />
+            <div v-else class="record-edit">
+              <input class="bare-input" v-model="nameInput" maxlength="12" placeholder="输入昵称（12 字内）" @keyup.enter="saveName" />
               <button class="btn btn-primary btn-sm" @click="saveName">保存</button>
               <button class="btn btn-ghost btn-sm" @click="cancelName">取消</button>
             </div>
           </div>
-          <div class="profile-head-actions">
-            <button class="btn btn-ghost" @click="editName" v-if="!editing"><Icon name="edit" :size="15" /> {{ S.user.name ? '修改昵称' : '设置昵称' }}</button>
-            <button class="btn btn-soft" @click="openFav"><Icon name="star" :size="15" /> 收藏 {{ S.favorites.length }}</button>
+          <div class="record-actions">
+            <button class="record-action-inline" @click="editName" v-if="!editing"><Icon name="edit" :size="14" /> {{ S.user.name ? '修改昵称' : '设置昵称' }}</button>
+            <button class="record-action-inline" @click="openFav"><Icon name="star" :size="14" /> 收藏 {{ S.favorites.length }}</button>
+            <span class="record-stamp">LOCAL<br />ARCHIVE</span>
           </div>
         </section>
 
-        <div class="profile-grid">
-          <div class="metric-card card">
-            <div class="k"><Icon name="zap" :size="13" /> 累计练习</div>
-            <div class="v">{{ practiceCount }}<em>组</em></div>
-          </div>
-          <div class="metric-card card">
-            <div class="k"><Icon name="check-circle" :size="13" /> 累计答题</div>
-            <div class="v">{{ answeredTotal }}<em>题</em></div>
-          </div>
-          <div class="metric-card card">
-            <div class="k"><Icon name="target" :size="13" /> 平均正确率</div>
-            <div class="v">{{ avgAccuracy }}<em>%</em></div>
-          </div>
-          <div class="metric-card card">
-            <div class="k"><Icon name="flag" :size="13" /> 错题本</div>
-            <div class="v">{{ S.wrong.length }}<em>题</em></div>
-          </div>
-        </div>
-
-        <div class="profile-cols">
-          <div style="display:flex;flex-direction:column;gap:16px;min-width:0">
-            <section class="panel-card card">
-              <h3><Icon name="chart" :size="16" /> 掌握程度分布</h3>
-              <div class="mastery-bars" v-if="markedTotal">
-                <div class="mbar-row" v-for="b in masteryBars" :key="b.key">
-                  <span class="lbl">{{ b.label }}</span>
-                  <span class="mbar"><i :style="{ width: b.pct + '%', background: b.color }"></i></span>
-                  <b>{{ b.count }}</b>
-                </div>
-              </div>
-              <p class="comment-empty" v-else>做题后标记「简单 / 一般 / 不会」，这里会生成你的掌握度画像。</p>
-              <div style="display:flex;gap:16px;margin-top:12px;font-size:11.5px;color:var(--faint);flex-wrap:wrap">
-                <span>已标记 {{ markedTotal }} 题</span>
-                <span>·</span>
-                <span>已收藏 {{ S.favorites.length }} 题</span>
-                <span>·</span>
-                <span>学习 {{ studyDays }} 天</span>
+        <div class="record-grid">
+          <aside class="record-side">
+            <section class="record-block">
+              <header class="record-block-head"><span class="ps-kicker">MEASUREMENTS</span><span>累计</span></header>
+              <div class="record-figures">
+                <div><span>练习组数</span><b>{{ practiceCount }}</b><em>SESSIONS</em></div>
+                <div><span>累计答题</span><b>{{ answeredTotal }}</b><em>QUESTIONS</em></div>
+                <div><span>平均正确率</span><b>{{ avgAccuracy }}</b><em>PERCENT</em></div>
+                <div><span>错题本</span><b>{{ S.wrong.length }}</b><em>TO REVISIT</em></div>
               </div>
             </section>
 
-            <section class="panel-card card">
-              <h3><Icon name="clock" :size="16" /> 最近练习</h3>
-              <div class="history-list" v-if="S.practice.length">
-                <div class="history-row" v-for="(p, i) in S.practice.slice(0, 10)" :key="i">
-                  <span class="ico"><Icon name="play" :size="14" /></span>
-                  <div class="txt">
+            <section class="record-block">
+              <header class="record-block-head"><span class="ps-kicker">MASTERY PROFILE</span><span>已标记 {{ markedTotal }}</span></header>
+              <div class="mastery-strip" v-if="markedTotal">
+                <i v-for="b in masteryBars" :key="b.key" :style="{ width: b.pct + '%', background: b.color }" :title="b.label + ' ' + b.count + ' 题'"></i>
+              </div>
+              <div class="mastery-strip empty" v-else></div>
+              <div class="mastery-rows">
+                <div class="mastery-row" v-for="b in masteryBars" :key="b.key">
+                  <span class="mr-dot" :style="{ background: b.color }"></span>
+                  <b>{{ b.label }}</b>
+                  <em>{{ b.count }}</em>
+                  <small>{{ markedTotal ? b.pct : 0 }}%</small>
+                </div>
+              </div>
+              <p class="record-block-foot" v-if="!markedTotal">做题后标记「简单 / 一般 / 不会」，这里会生成掌握度画像。</p>
+              <p class="record-block-foot" v-else>学习 {{ studyDays }} 天 · 收藏 {{ S.favorites.length }} 题</p>
+            </section>
+
+            <section class="record-block">
+              <header class="record-block-head"><span class="ps-kicker">DATA & SETTINGS</span><span>本机</span></header>
+              <div class="record-links">
+                <button @click="openWrong"><span>错题本</span><em>{{ S.wrong.length }} 题</em><Icon name="arrow-right" :size="12" /></button>
+                <button @click="openFav"><span>收藏夹</span><em>{{ S.favorites.length }} 题</em><Icon name="arrow-right" :size="12" /></button>
+                <button @click="exportData"><span>导出学习数据</span><em>JSON</em><Icon name="download" :size="12" /></button>
+                <button @click="clearPractice"><span>清空练习记录</span><em>保留错题</em><Icon name="rotate" :size="12" /></button>
+                <button class="danger" @click="resetAll"><span>清空全部本地数据</span><em>不可恢复</em><Icon name="trash" :size="12" /></button>
+              </div>
+              <p class="record-note">本站为纯静态演示：没有账号系统，也不会上传任何数据。清除浏览器缓存会同时丢失这些记录。</p>
+            </section>
+          </aside>
+
+          <section class="record-main">
+            <section class="record-log">
+              <header class="record-log-head">
+                <div><span class="ps-kicker">01 / SESSION LOG</span><h3>最近练习</h3></div>
+                <span>{{ S.practice.length }} 条记录</span>
+              </header>
+              <div v-if="S.practice.length">
+                <div class="session-row" v-for="(p, i) in S.practice.slice(0, 10)" :key="i">
+                  <span class="session-no">{{ pad(i + 1) }}</span>
+                  <div class="session-main">
                     <b>{{ p.title }}</b>
                     <span>{{ U.timeStr(p.at) }} · {{ p.total }} 题 · 用时 {{ fmtDuration(p.duration) }}</span>
                   </div>
-                  <span class="score" :style="{ color: p.accuracy >= 60 ? '#0f7a38' : '#e0483a' }">{{ p.accuracy }}%</span>
+                  <span class="session-acc" :class="{ low: p.accuracy < 60 }">{{ p.accuracy }}<em>%</em></span>
                 </div>
               </div>
-              <div class="empty-state" v-else style="padding:26px 10px">
-                <p style="margin:0">还没有练习记录，去考点页刷一组吧。</p>
-                <button class="btn btn-ghost btn-sm" style="margin-top:10px" @click="go('/dashboard/math1')">开始刷题</button>
+              <div class="record-empty" v-else>
+                <span class="ps-kicker">NO SESSIONS YET</span>
+                <p>还没有练习记录，去考点页刷一组吧。</p>
+                <button class="proof-action" @click="go('/dashboard/math1')">开始刷题</button>
               </div>
             </section>
 
-            <section class="panel-card card" v-if="subjectStats.length">
-              <h3><Icon name="grid" :size="16" /> 科目练习量</h3>
-              <div class="mbar-row" v-for="s in subjectStats" :key="s.name">
-                <span class="lbl" style="width:74px">{{ s.name }}</span>
-                <span class="mbar"><i :style="{ width: Math.min(100, (s.count / Math.max(1, subjectStats[0].count)) * 100) + '%', background: 'linear-gradient(90deg,var(--sage),var(--forest))' }"></i></span>
-                <b>{{ s.count }}</b>
-              </div>
-            </section>
-          </div>
-
-          <div style="display:flex;flex-direction:column;gap:16px;min-width:0">
-            <section class="panel-card card">
-              <h3><Icon name="folder" :size="16" /> 我的试卷 <span style="font-weight:500;font-size:11px;color:var(--faint)">（{{ S.papers.length }}）</span></h3>
-              <div class="history-list" v-if="S.papers.length">
-                <div class="history-row" v-for="p in S.papers.slice(0, 5)" :key="p.id">
-                  <span class="ico"><Icon name="book" :size="14" /></span>
-                  <div class="txt">
+            <section class="record-log">
+              <header class="record-log-head">
+                <div><span class="ps-kicker">02 / SAVED PAPERS</span><h3>我的试卷</h3></div>
+                <button class="sheet-link" @click="go('/assembly')"><Icon name="layers" :size="12" /> 去组卷</button>
+              </header>
+              <div v-if="S.papers.length">
+                <div class="session-row" v-for="p in S.papers.slice(0, 6)" :key="p.id">
+                  <span class="session-no">{{ p.count }}</span>
+                  <div class="session-main">
                     <b>{{ p.title }}</b>
-                    <span>{{ p.count }} 题 · {{ U.relTime(p.at) }}</span>
+                    <span>{{ U.relTime(p.at) }} · {{ p.score }} 分</span>
                   </div>
-                  <button class="icon-btn" style="width:28px;height:28px" title="开始" @click="startPaper(p)"><Icon name="play" :size="13" /></button>
-                  <button class="icon-btn" style="width:28px;height:28px" title="删除" @click="deletePaper(p)"><Icon name="trash" :size="13" /></button>
+                  <button class="row-icon" title="开始练习" @click="startPaper(p)"><Icon name="play" :size="13" /></button>
+                  <button class="row-icon" title="删除" @click="deletePaper(p)"><Icon name="trash" :size="13" /></button>
                 </div>
               </div>
-              <p class="comment-empty" v-else>还没有保存的试卷，去「智能组卷」拼一份。</p>
-              <button class="btn btn-ghost btn-sm btn-block" style="margin-top:11px" @click="go('/assembly')"><Icon name="layers" :size="14" /> 去组卷</button>
+              <div class="record-empty small" v-else>
+                <p>还没有保存的试卷，去「智能组卷」拼一份。</p>
+              </div>
             </section>
 
-            <section class="panel-card card">
-              <h3><Icon name="settings" :size="16" /> 数据与设置</h3>
-              <div class="profile-actions">
-                <button class="profile-action" @click="openWrong"><Icon name="flag" :size="16" /> 错题本 <span style="margin-left:auto;color:var(--faint)">{{ S.wrong.length }} 题</span></button>
-                <button class="profile-action" @click="openFav"><Icon name="star" :size="16" /> 收藏夹 <span style="margin-left:auto;color:var(--faint)">{{ S.favorites.length }} 题</span></button>
-                <button class="profile-action" @click="exportData"><Icon name="download" :size="16" /> 导出学习数据（JSON）</button>
-                <button class="profile-action" @click="clearPractice"><Icon name="rotate" :size="16" /> 清空练习记录</button>
-                <button class="profile-action danger" @click="resetAll"><Icon name="trash" :size="16" /> 清空全部本地数据</button>
+            <section class="record-log" v-if="subjectStats.length">
+              <header class="record-log-head">
+                <div><span class="ps-kicker">03 / SUBJECT VOLUME</span><h3>科目练习量</h3></div>
+                <span>题次</span>
+              </header>
+              <div class="subject-bars">
+                <div class="subject-row" v-for="s in subjectStats" :key="s.name">
+                  <span>{{ s.name }}</span>
+                  <span class="subject-track"><i :style="{ width: Math.min(100, (s.count / Math.max(1, subjectStats[0].count)) * 100) + '%' }"></i></span>
+                  <b>{{ s.count }}</b>
+                </div>
               </div>
-              <p style="font-size:10.5px;color:var(--faint);line-height:1.7;margin-top:11px">本站为纯静态演示：没有账号系统，也不会上传任何数据。清除浏览器缓存会同时丢失这些记录。</p>
             </section>
-          </div>
+          </section>
         </div>
       </div>
     </main>`,
@@ -1201,17 +1309,52 @@
   /* ================= 404 ================= */
   YT.components.NotFoundView = {
     data() {
-      return { U: U };
+      return {
+        U: U,
+        routes: [
+          { no: "01", name: "总览", path: "/" },
+          { no: "02", name: "题库", path: "/papers" },
+          { no: "03", name: "组卷", path: "/assembly" },
+          { no: "04", name: "导入", path: "/import" },
+          { no: "05", name: "错题", path: "/wrong-book" }
+        ]
+      };
     },
     template: `
-    <main class="question-page">
-      <div class="container">
-        <div class="empty-state card" style="margin-top:34px;padding:64px 24px">
-          <span class="empty-icon"><Icon name="alert" :size="28" /></span>
-          <h3>页面走丢了</h3>
-          <p>这个地址没有对应的内容，回到首页继续刷题吧。</p>
-          <button class="btn btn-primary" @click="U.go('/')">返回首页</button>
+    <main class="void-page">
+      <div class="void-sheet">
+        <header class="void-mast">
+          <span class="plate-kicker">PLATE ∅ / UNFILED SHEET</span>
+          <span class="void-code">ERR · 404 · VOID</span>
+        </header>
+        <div class="void-body">
+          <div class="void-figure">
+            <span class="void-num">404</span>
+            <span class="void-stamp">NOT FILED</span>
+          </div>
+          <div class="void-copy">
+            <p class="void-kicker">ROUTE NOT REGISTERED / 路径未登记</p>
+            <h1>这一页不在卷宗里</h1>
+            <p class="void-note">这个地址没有被归档，可能是链接过期、拼写有误，或者这一页已经被抽出卷宗。</p>
+            <div class="void-actions">
+              <button class="btn btn-primary" @click="U.go('/')">回到总览</button>
+              <button class="btn btn-ghost" @click="U.go('/papers')">去题库</button>
+            </div>
+          </div>
         </div>
+        <div class="void-index">
+          <span class="void-index-label">AVAILABLE ROUTES / 已收录路径</span>
+          <button v-for="r in routes" :key="r.no" class="void-route" @click="U.go(r.path)">
+            <span class="void-route-no">{{ r.no }}</span>
+            <span class="void-route-name">{{ r.name }}</span>
+            <span class="void-route-path">{{ r.path }}</span>
+            <span class="void-route-arrow">→</span>
+          </button>
+        </div>
+        <footer class="void-foot">
+          <span>研题岛 ATLAS</span>
+          <span>LOCAL-FIRST / NO SERVER</span>
+        </footer>
       </div>
     </main>`,
   };

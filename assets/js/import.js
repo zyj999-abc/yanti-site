@@ -1502,224 +1502,253 @@
       }
     },
     template: `
-    <main class="import-page">
+    <main class="ingest-page">
       <div class="container">
-        <div class="page-head">
-          <div class="page-head-left">
-            <div class="crumb"><a href="#/" @click.prevent="go('/')">首页</a><span>/</span><b>PDF 导入</b></div>
-            <h1>上传 PDF，自动拆题</h1>
-            <p>文字层 PDF 本地解析 · 自动分配题型、考点与难度 · 可逐题校对后再入库</p>
+        <header class="plate-mast ingest-mast">
+          <div class="plate-no"><span>PLATE</span><b>05</b></div>
+          <div class="plate-title">
+            <span class="plate-kicker">PDF INGEST / 文本入库</span>
+            <div class="specimen-crumb">
+              <a href="#/" @click.prevent="go('/')">总览</a><i>/</i>
+              <b>PDF 导入</b>
+            </div>
           </div>
-          <div class="page-head-actions">
-            <button class="btn btn-ghost" @click="goAssembly"><Icon name="layers" :size="15" /> 去组卷</button>
+          <div class="mast-tools">
+            <span class="ingest-status">LOCAL ONLY</span>
+            <span class="ingest-status">TEXT LAYER</span>
+            <button class="tool-btn" @click="goAssembly"><Icon name="layers" :size="13" /> 去组卷</button>
           </div>
-        </div>
+        </header>
 
-        <section class="import-note card">
-          <div class="import-note-icon"><Icon name="scan" :size="20" /></div>
-          <div>
-            <b>纯浏览器解析，文件不会上传到服务器</b>
-            <p>支持带文字层的 PDF（大多数电子版真题）。会自动清理水印、页眉页脚和乱码字符；扫描版需要先 OCR。数学公式和图形建议勾选「保留原题截图」，显示时以原卷为准。</p>
+        <section class="ingest-note">
+          <span class="ingest-note-icon"><Icon name="scan" :size="19" /></span>
+          <div class="ingest-note-text">
+            <b>纯浏览器解析 · 文件不离开本机</b>
+            <p>支持带文字层的电子版 PDF，自动清理水印、页眉页脚和乱码字符；扫描版需要先 OCR。数学公式与图形建议保留原题截图。</p>
+          </div>
+          <div class="ingest-note-meta">
+            <span>MAX <b>30 MB</b></span>
+            <span>OUTPUT <b>QUESTION BANK</b></span>
           </div>
         </section>
 
-        <div class="import-layout">
-          <section class="import-config card">
-            <h2>1. 选择文件与归属</h2>
-            <div class="import-drop" :class="{ dragging: dragging, filled: hasFile }"
-              @click="pickFile" @dragover.prevent="dragging = true" @dragleave.prevent="dragging = false" @drop.prevent="onDrop">
-              <input ref="fileInput" type="file" accept="application/pdf,.pdf" hidden @change="onFile" />
-              <span class="drop-icon"><Icon name="upload" :size="26" /></span>
-              <b>{{ hasFile ? fileName : '点击选择或拖入 PDF' }}</b>
-              <span>{{ hasFile ? fmtSize(fileSize) : '单个文件不超过 30 MB' }}</span>
-              <em v-if="hasFile">重新选择</em>
+        <div class="ingest-grid">
+          <aside class="ingest-config">
+            <div class="ingest-code">
+              <span class="margin-label">INGEST STATION</span>
+              <b>PDF → BANK</b>
+              <span class="code-sub">STEP 01–04 / LOCAL PIPELINE</span>
             </div>
 
-            <div class="form-row">
-              <div class="form-item">
-                <label>科目</label>
-                <select class="select-input" v-model="subjectId" :disabled="parsing || importing">
-                  <option v-for="s in D.subjects" :key="s.id" :value="s.id">{{ s.name }}</option>
-                </select>
-              </div>
-              <div class="form-item">
-                <label>年份</label>
-                <select class="select-input" v-model="year" :disabled="parsing || importing">
-                  <option v-for="y in yearOptions" :key="y" :value="y">{{ y }} 年</option>
-                </select>
-              </div>
-            </div>
-            <p class="field-hint" v-if="subjectId === 'math2'">数学二只保留高数与线代考点，自动过滤概率论、无穷级数与空间解析几何。</p>
-
-            <div class="form-item">
-              <label>默认难度</label>
-              <div class="segmented">
-                <button :class="{on: difficultyMode === 'auto'}" @click="difficultyMode = 'auto'">自动判断</button>
-                <button :class="{on: difficultyMode === '1'}" @click="difficultyMode = '1'">易</button>
-                <button :class="{on: difficultyMode === '2'}" @click="difficultyMode = '2'">中</button>
-                <button :class="{on: difficultyMode === '3'}" @click="difficultyMode = '3'">难</button>
+            <div class="ingest-block">
+              <div class="ingest-block-head"><span>01</span><b>选择文件</b></div>
+              <div class="ingest-drop" :class="{ dragging: dragging, filled: hasFile }"
+                @click="pickFile" @dragover.prevent="dragging = true" @dragleave.prevent="dragging = false" @drop.prevent="onDrop">
+                <input ref="fileInput" type="file" accept="application/pdf,.pdf" hidden @change="onFile" />
+                <span class="drop-icon"><Icon name="upload" :size="22" /></span>
+                <b>{{ hasFile ? fileName : '点击选择或拖入 PDF' }}</b>
+                <span>{{ hasFile ? fmtSize(fileSize) : '单个文件不超过 30 MB' }}</span>
+                <em v-if="hasFile">重新选择</em>
               </div>
             </div>
 
-            <label class="check-line" v-if="canKeepImage">
-              <input type="checkbox" v-model="keepImage" />
-              <span>保留原题截图（推荐数学）<em>公式、图形、表格以原卷呈现</em></span>
-            </label>
-            <p class="field-hint" v-else style="margin-top:2px">英语按文字与选项排版，不生成截图。</p>
+            <div class="ingest-block">
+              <div class="ingest-block-head"><span>02</span><b>归属与年份</b></div>
+              <div class="ingest-pair">
+                <label class="ingest-field">
+                  <span>科目</span>
+                  <select class="bare-select" v-model="subjectId" :disabled="parsing || importing">
+                    <option v-for="s in D.subjects" :key="s.id" :value="s.id">{{ s.name }}</option>
+                  </select>
+                </label>
+                <label class="ingest-field">
+                  <span>年份</span>
+                  <select class="bare-select" v-model="year" :disabled="parsing || importing">
+                    <option v-for="y in yearOptions" :key="y" :value="y">{{ y }} 年</option>
+                  </select>
+                </label>
+              </div>
+              <p class="ingest-hint" v-if="subjectId === 'math2'">数学二只保留高数与线代考点，自动过滤概率论、无穷级数与空间解析几何。</p>
+            </div>
 
-            <div class="import-progress" v-if="parsing || importing">
+            <div class="ingest-block">
+              <div class="ingest-block-head"><span>03</span><b>默认难度</b></div>
+              <div class="ingest-segs">
+                <button :class="{ on: difficultyMode === 'auto' }" @click="difficultyMode = 'auto'">自动判断</button>
+                <button :class="{ on: difficultyMode === '1' }" @click="difficultyMode = '1'">易</button>
+                <button :class="{ on: difficultyMode === '2' }" @click="difficultyMode = '2'">中</button>
+                <button :class="{ on: difficultyMode === '3' }" @click="difficultyMode = '3'">难</button>
+              </div>
+            </div>
+
+            <div class="ingest-block">
+              <div class="ingest-block-head"><span>04</span><b>解析选项</b></div>
+              <label class="ingest-check" v-if="canKeepImage">
+                <input type="checkbox" v-model="keepImage" />
+                <span><b>保留原题截图</b><em>公式、图形、表格以原卷呈现</em></span>
+              </label>
+              <p class="ingest-hint" v-else>英语按文字与选项排版，不生成截图。</p>
+            </div>
+
+            <div class="ingest-progress" v-if="parsing || importing">
               <div class="ip-head"><span>{{ progressText }}</span><b>{{ progress }}%</b></div>
               <div class="ip-bar"><i :style="{ width: progress + '%' }"></i></div>
             </div>
 
-            <p class="import-error" v-if="error">{{ error }}</p>
-            <p class="import-warn" v-if="parseWarning">{{ parseWarning }}</p>
-          </section>
+            <p class="ingest-error" v-if="error"><b>ERROR</b>{{ error }}</p>
+            <p class="ingest-warn" v-if="parseWarning"><b>NOTICE</b>{{ parseWarning }}</p>
+          </aside>
 
-          <section class="import-batches card">
-            <h2>我的导入 <span>{{ S.importedBatches.length }} 批</span></h2>
-            <div v-if="S.importedBatches.length" class="batch-list">
-              <div class="batch-item" v-for="b in S.importedBatches" :key="b.id">
-                <span class="batch-ico"><Icon name="file" :size="18" /></span>
-                <div class="batch-txt">
-                  <b>{{ b.name }}</b>
-                  <span>{{ b.subjectName }} · {{ b.year }} 年 · {{ b.count }} 题 · {{ U.timeStr(b.createdAt) }}</span>
+          <section class="ingest-work">
+            <section class="ingest-receipt">
+              <header class="ingest-work-head">
+                <span class="margin-label">BATCH LOG / 我的导入</span>
+                <b>{{ S.importedBatches.length }}</b>
+              </header>
+              <div v-if="S.importedBatches.length" class="batch-list">
+                <div class="batch-row" v-for="b in S.importedBatches" :key="b.id">
+                  <span class="batch-ico"><Icon name="file" :size="15" /></span>
+                  <div class="batch-txt">
+                    <b>{{ b.name }}</b>
+                    <span>{{ b.subjectName }} · {{ b.year }} 年 · {{ b.count }} 题 · {{ U.timeStr(b.createdAt) }}</span>
+                  </div>
+                  <button class="tool-btn" @click="goAssembly">组卷</button>
+                  <button class="batch-del" title="删除" @click="deleteBatch(b)"><Icon name="trash" :size="13" /></button>
                 </div>
-                <button class="btn btn-ghost btn-sm" @click="goAssembly">组卷</button>
-                <button class="icon-btn" title="删除" @click="deleteBatch(b)"><Icon name="trash" :size="14" /></button>
               </div>
-            </div>
-            <div v-else class="batch-empty">
-              <Icon name="file" :size="22" />
-              <p>还没有导入过试卷。上传一份 PDF，拆好的题目会出现在智能组卷里。</p>
-            </div>
+              <p v-else class="batch-empty-line">还没有导入过试卷。上传一份 PDF，拆好的题目会出现在智能组卷里。</p>
+            </section>
+
+            <section class="review-sheet" v-if="rows.length">
+              <header class="review-head">
+                <div class="review-head-main">
+                  <span class="margin-label">STEP 02 / REVIEW / 校对</span>
+                  <h2>逐题校对 <em>{{ rows.length }}</em></h2>
+                  <p>默认全部导入。题型、考点、难度、分值都可以直接改；低置信度的题建议重点检查。</p>
+                  <p class="clean-note" v-if="cleanStats && (cleanStats.watermarkLines || cleanStats.removed >= 5 || cleanStats.junkLines)">
+                    <Icon name="check" :size="12" />
+                    已过滤 {{ cleanStats.watermarkLines }} 行水印/页眉页脚、{{ cleanStats.removed }} 个乱码字符<span v-if="cleanStats.bodyWatermark">；原题截图会淡化浅色水印</span>
+                  </p>
+                </div>
+                <div class="review-bulk">
+                  <button class="tool-btn" @click="toggleAll(true)">全选</button>
+                  <button class="tool-btn" @click="toggleAll(false)">全不选</button>
+                  <button class="tool-btn" @click="invertAll">反选</button>
+                </div>
+              </header>
+
+              <div class="review-toolbar">
+                <span class="rt-count">已选 <b>{{ selectedCount }}</b> 道</span>
+                <span v-if="lowConfidenceCount" class="rt-warn">{{ lowConfidenceCount }} 道待确认</span>
+                <div class="bulk-set">
+                  <select class="bare-select" v-model="bulkType">
+                    <option value="">批量题型</option>
+                    <option v-for="t in typeOptions" :key="t" :value="t">{{ typeLabel(t) }}</option>
+                  </select>
+                  <button class="tool-btn" @click="applyBulkType">应用</button>
+                  <select class="bare-select" v-model="bulkDiff">
+                    <option value="">批量难度</option>
+                    <option value="1">易</option>
+                    <option value="2">中</option>
+                    <option value="3">难</option>
+                  </select>
+                  <button class="tool-btn" @click="applyBulkDiff">应用</button>
+                </div>
+              </div>
+
+              <div class="review-list">
+                <article class="review-item" v-for="(r, i) in rows" :key="r.key" :class="{ off: !r.include, low: r.confidence < 4 }">
+                  <div class="review-top">
+                    <label class="review-check">
+                      <input type="checkbox" v-model="r.include" />
+                      <b>{{ r.num }}</b>
+                    </label>
+                    <div class="review-summary">
+                      <p>{{ r.stem }}</p>
+                      <div class="review-tags">
+                        <span>{{ typeLabel(r.type) }}</span>
+                        <span>{{ kpLabel(r.kpId) }}</span>
+                        <span>{{ diffLabel(r.difficulty) }} · {{ r.score }} 分</span>
+                        <span v-if="r.confidence < 4" class="tag-warn">待确认</span>
+                        <span v-if="r.pageNo">P.{{ r.pageNo }}</span>
+                      </div>
+                    </div>
+                    <button class="review-tool" :title="expanded[r.key] ? '收起' : '编辑'" @click="toggleRow(r.key)">
+                      <Icon :name="expanded[r.key] ? 'chev-down' : 'edit'" :size="14" />
+                    </button>
+                    <button class="review-tool danger" title="移除" @click="removeRow(r)"><Icon name="x" :size="13" /></button>
+                  </div>
+
+                  <div class="review-edit" v-if="expanded[r.key]">
+                    <div class="form-item">
+                      <label>题干</label>
+                      <textarea class="comment-input" rows="3" v-model="r.stem"></textarea>
+                    </div>
+                    <div class="review-fields">
+                      <div class="form-item">
+                        <label>题型</label>
+                        <select class="select-input" v-model="r.type">
+                          <option v-for="t in typeOptions" :key="t" :value="t">{{ typeLabel(t) }}</option>
+                        </select>
+                      </div>
+                      <div class="form-item">
+                        <label>考点</label>
+                        <select class="select-input" v-model="r.kpId">
+                          <option v-for="k in kpOptions" :key="k.id" :value="k.id">{{ k.name }}</option>
+                        </select>
+                      </div>
+                      <div class="form-item">
+                        <label>难度</label>
+                        <select class="select-input" v-model.number="r.difficulty">
+                          <option :value="1">易</option>
+                          <option :value="2">中</option>
+                          <option :value="3">难</option>
+                        </select>
+                      </div>
+                      <div class="form-item">
+                        <label>分值</label>
+                        <input class="text-input" type="number" step="0.5" min="0" v-model.number="r.score" />
+                      </div>
+                    </div>
+                    <div class="form-item" v-if="r.type === 'choice'">
+                      <label>选项（每行一个，按 A/B/C/D 顺序）</label>
+                      <textarea class="comment-input" rows="4" v-model="r.optionsText"></textarea>
+                    </div>
+                    <div class="form-item">
+                      <label>答案</label>
+                      <input class="text-input" v-model="r.answer" placeholder="选择题填 A/B/C/D；主观题填参考答案" />
+                    </div>
+                    <div class="form-item">
+                      <label>解析</label>
+                      <textarea class="comment-input" rows="3" v-model="r.analysis"></textarea>
+                    </div>
+                    <p class="review-raw" v-if="r.passage">已提取阅读材料，共 {{ r.passage.length }} 字符</p>
+                  </div>
+                </article>
+              </div>
+
+              <div class="review-foot">
+                <p>导入后可在「智能组卷」中按标准卷型、难度和题型抽题。<b>{{ selectedCount }}</b> 道已勾选。</p>
+                <button class="ingest-import" :disabled="importing || !selectedCount" @click="doImport">
+                  <Icon name="upload" :size="15" /> {{ importing ? '正在导入…' : '导入 ' + selectedCount + ' 道题' }}
+                </button>
+              </div>
+            </section>
+
+            <section class="ingest-guide" v-if="!rows.length && !parsing">
+              <header class="ingest-work-head">
+                <span class="margin-label">PARSING RULES / 解析规则与边界</span>
+                <span class="guide-tag">TEXT LAYER ONLY</span>
+              </header>
+              <div class="guide-grid">
+                <div><b>01 / 题型</b><p>按「选择题 / 填空题 / 解答题 / 综合应用题 / 完形 / 阅读 / 新题型 / 翻译 / 写作」识别。选择题优先看 A-D 选项，其次看大题标题。</p></div>
+                <div><b>02 / 考点</b><p>用题干关键词匹配现有考点树。数学二会自动排除概率论、无穷级数和空间解析几何。</p></div>
+                <div><b>03 / 难度</b><p>按题型、题干长度和关键词粗判易/中/难；导入前可以逐题改，组卷时再按难度筛选。</p></div>
+                <div><b>04 / 答案</b><p>能识别【答案】【解析】和卷末「参考答案」；识别不到时留空，不会编造答案。</p></div>
+              </div>
+            </section>
           </section>
         </div>
-
-        <section class="review-card card" v-if="rows.length">
-          <div class="review-head">
-            <div>
-              <h2>2. 校对题目 <span>{{ rows.length }} 道</span></h2>
-              <p>默认全部导入。题型、考点、难度、分值都可以直接改；低置信度的题建议重点检查。</p>
-              <p class="clean-note" v-if="cleanStats && (cleanStats.watermarkLines || cleanStats.removed >= 5 || cleanStats.junkLines)">
-                <Icon name="check" :size="13" />
-                已过滤 {{ cleanStats.watermarkLines }} 行水印/页眉页脚、{{ cleanStats.removed }} 个乱码字符<span v-if="cleanStats.bodyWatermark">；原题截图会淡化浅色水印</span>
-              </p>
-            </div>
-            <div class="review-bulk">
-              <button class="btn btn-ghost btn-sm" @click="toggleAll(true)">全选</button>
-              <button class="btn btn-ghost btn-sm" @click="toggleAll(false)">全不选</button>
-              <button class="btn btn-ghost btn-sm" @click="invertAll">反选</button>
-            </div>
-          </div>
-
-          <div class="review-toolbar">
-            <span>已选 <b>{{ selectedCount }}</b> 道</span>
-            <span v-if="lowConfidenceCount" class="warn-dot">{{ lowConfidenceCount }} 道待确认</span>
-            <div class="bulk-set">
-              <select class="select-input" v-model="bulkType">
-                <option value="">批量题型</option>
-                <option v-for="t in typeOptions" :key="t" :value="t">{{ typeLabel(t) }}</option>
-              </select>
-              <button class="btn btn-ghost btn-sm" @click="applyBulkType">应用</button>
-              <select class="select-input" v-model="bulkDiff">
-                <option value="">批量难度</option>
-                <option value="1">易</option>
-                <option value="2">中</option>
-                <option value="3">难</option>
-              </select>
-              <button class="btn btn-ghost btn-sm" @click="applyBulkDiff">应用</button>
-            </div>
-          </div>
-
-          <div class="review-list">
-            <article class="review-item" v-for="(r, i) in rows" :key="r.key" :class="{ off: !r.include, low: r.confidence < 4 }">
-              <div class="review-top">
-                <label class="review-check">
-                  <input type="checkbox" v-model="r.include" />
-                  <b>{{ r.num }}</b>
-                </label>
-                <div class="review-summary">
-                  <p>{{ r.stem }}</p>
-                  <div class="review-tags">
-                    <span>{{ typeLabel(r.type) }}</span>
-                    <span>{{ kpLabel(r.kpId) }}</span>
-                    <span>{{ diffLabel(r.difficulty) }} · {{ r.score }} 分</span>
-                    <span v-if="r.confidence < 4" class="tag-warn">待确认</span>
-                    <span v-if="r.pageNo">第 {{ r.pageNo }} 页</span>
-                  </div>
-                </div>
-                <button class="icon-btn" :title="expanded[r.key] ? '收起' : '编辑'" @click="toggleRow(r.key)">
-                  <Icon :name="expanded[r.key] ? 'chev-down' : 'edit'" :size="15" />
-                </button>
-                <button class="icon-btn" title="移除" @click="removeRow(r)"><Icon name="x" :size="14" /></button>
-              </div>
-
-              <div class="review-edit" v-if="expanded[r.key]">
-                <div class="form-item">
-                  <label>题干</label>
-                  <textarea class="comment-input" rows="3" v-model="r.stem"></textarea>
-                </div>
-                <div class="review-fields">
-                  <div class="form-item">
-                    <label>题型</label>
-                    <select class="select-input" v-model="r.type">
-                      <option v-for="t in typeOptions" :key="t" :value="t">{{ typeLabel(t) }}</option>
-                    </select>
-                  </div>
-                  <div class="form-item">
-                    <label>考点</label>
-                    <select class="select-input" v-model="r.kpId">
-                      <option v-for="k in kpOptions" :key="k.id" :value="k.id">{{ k.name }}</option>
-                    </select>
-                  </div>
-                  <div class="form-item">
-                    <label>难度</label>
-                    <select class="select-input" v-model.number="r.difficulty">
-                      <option :value="1">易</option>
-                      <option :value="2">中</option>
-                      <option :value="3">难</option>
-                    </select>
-                  </div>
-                  <div class="form-item">
-                    <label>分值</label>
-                    <input class="text-input" type="number" step="0.5" min="0" v-model.number="r.score" />
-                  </div>
-                </div>
-                <div class="form-item" v-if="r.type === 'choice'">
-                  <label>选项（每行一个，按 A/B/C/D 顺序）</label>
-                  <textarea class="comment-input" rows="4" v-model="r.optionsText"></textarea>
-                </div>
-                <div class="form-item">
-                  <label>答案</label>
-                  <input class="text-input" v-model="r.answer" placeholder="选择题填 A/B/C/D；主观题填参考答案" />
-                </div>
-                <div class="form-item">
-                  <label>解析</label>
-                  <textarea class="comment-input" rows="3" v-model="r.analysis"></textarea>
-                </div>
-                <p class="review-raw" v-if="r.passage">已提取阅读材料，共 {{ r.passage.length }} 字符</p>
-              </div>
-            </article>
-          </div>
-
-          <div class="review-foot">
-            <p>导入后可在「智能组卷」中按标准卷型、难度和题型抽题。</p>
-            <button class="btn btn-primary btn-lg" :disabled="importing || !selectedCount" @click="doImport">
-              <Icon name="upload" :size="16" /> {{ importing ? '正在导入…' : '导入 ' + selectedCount + ' 道题' }}
-            </button>
-          </div>
-        </section>
-
-        <section class="import-guide card" v-if="!rows.length && !parsing">
-          <h2>解析规则与边界</h2>
-          <div class="guide-grid">
-            <div><b>题型</b><p>按「选择题 / 填空题 / 解答题 / 综合应用题 / 完形 / 阅读 / 新题型 / 翻译 / 写作」识别。选择题优先看 A-D 选项，其次看大题标题。</p></div>
-            <div><b>考点</b><p>用题干关键词匹配现有考点树。数学二会自动排除概率论、无穷级数和空间解析几何。</p></div>
-            <div><b>难度</b><p>按题型、题干长度和关键词粗判易/中/难；导入前可以逐题改，组卷时再按难度筛选。</p></div>
-            <div><b>答案</b><p>能识别【答案】【解析】和卷末「参考答案」；识别不到时留空，不会编造答案。</p></div>
-          </div>
-        </section>
       </div>
     </main>`,
   };

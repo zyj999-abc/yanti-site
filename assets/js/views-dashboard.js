@@ -1,4 +1,4 @@
-/* Dashboard: knowledge tree, stats, charts, question list */
+/* Dashboard: ATLAS plate — index margin, focus field, strata, ledger */
 (function () {
   const YT = window.YT;
   const U = YT.util;
@@ -6,10 +6,10 @@
   const S = YT.S;
 
   const TYPE_META = {
-    choice: { name: "选择题", color: "#bf6741" },
-    blank: { name: "填空题", color: "#747b95" },
-    solution: { name: "解答题", color: "#537c8d" },
-    proof: { name: "证明题", color: "#5f8c70" },
+    choice: { name: "选择题", short: "选择", color: "#bf6741" },
+    blank: { name: "填空题", short: "填空", color: "#747b95" },
+    solution: { name: "解答题", short: "解答", color: "#537c8d" },
+    proof: { name: "证明题", short: "证明", color: "#5f8c70" },
   };
 
   YT.components.KpNode = {
@@ -34,175 +34,18 @@
     },
     emits: ["select", "toggle"],
     template: `
-    <div class="tree-node" :class="'depth-' + depth">
-      <div class="tree-row" :class="{active: selected === node.id, muted: count === 0}" @click="$emit('select', node.id)">
-        <button v-if="hasChildren" class="tree-chev" :class="{open: isOpen}" @click.stop="$emit('toggle', node.id)" tabindex="-1" aria-label="展开">
-          <Icon name="chev-right" :size="12" />
+    <div class="idx-node">
+      <div class="idx-row" :class="['idx-depth-' + Math.min(depth, 3), { active: selected === node.id, muted: count === 0 }]" @click="$emit('select', node.id)">
+        <button v-if="hasChildren" class="idx-chev" :class="{ open: isOpen }" @click.stop="$emit('toggle', node.id)" tabindex="-1" aria-label="展开">
+          <Icon name="chev-right" :size="11" />
         </button>
-        <span v-else class="tree-spacer"></span>
-        <span class="tree-dot" :class="'tone-' + Math.min(count, 3)"></span>
-        <span class="tree-label">{{ node.name }}</span>
-        <span class="tree-count" v-if="count">{{ count }}</span>
+        <span v-else class="idx-tick"></span>
+        <span class="idx-label">{{ node.name }}</span>
+        <span class="idx-count">{{ count || '—' }}</span>
       </div>
-      <transition name="tree">
-        <div class="tree-children" v-if="hasChildren && isOpen">
-          <KpNode v-for="child in node.children" :key="child.id" :node="child" :depth="depth + 1" :counts="counts" :open-map="openMap" :selected="selected" @select="$emit('select', $event)" @toggle="$emit('toggle', $event)" />
-        </div>
-      </transition>
-    </div>`,
-  };
-
-  YT.components.LineChart = {
-    props: { series: Array, color: { type: String, default: "#bf6741" } },
-    data() {
-      return { width: 760, height: 224, hover: -1 };
-    },
-    computed: {
-      n() {
-        return this.series.length;
-      },
-      pad() {
-        return { l: 36, r: 16, t: 20, b: 30 };
-      },
-      max() {
-        return Math.max(1, ...this.series.map((d) => d.count));
-      },
-      baseY() {
-        return this.height - this.pad.b;
-      },
-      points() {
-        const n = this.n;
-        const innerW = this.width - this.pad.l - this.pad.r;
-        const innerH = this.height - this.pad.t - this.pad.b;
-        return this.series.map((d, i) => ({
-          x: this.pad.l + (n <= 1 ? innerW / 2 : (innerW * i) / (n - 1)),
-          y: this.pad.t + innerH - (d.count / this.max) * innerH,
-          count: d.count,
-          year: d.year,
-        }));
-      },
-      linePath() {
-        const p = this.points;
-        if (!p.length) return "";
-        let d = "M " + p[0].x + " " + p[0].y;
-        for (let i = 1; i < p.length; i++) {
-          const prev = p[i - 1];
-          const cur = p[i];
-          const mx = (prev.x + cur.x) / 2;
-          d += " C " + mx + " " + prev.y + ", " + mx + " " + cur.y + ", " + cur.x + " " + cur.y;
-        }
-        return d;
-      },
-      areaPath() {
-        const p = this.points;
-        if (!p.length) return "";
-        return this.linePath + " L " + p[p.length - 1].x + " " + this.baseY + " L " + p[0].x + " " + this.baseY + " Z";
-      },
-      yTicks() {
-        const max = this.max;
-        const ticks = [0, Math.ceil(max / 2), max];
-        return Array.from(new Set(ticks));
-      },
-      xLabels() {
-        const n = this.n;
-        const every = n > 9 ? Math.ceil(n / 7) : 1;
-        return this.points.map((p, i) => ({ x: p.x, year: p.year, show: i % every === 0 || i === n - 1 }));
-      },
-      hoverPoint() {
-        return this.hover >= 0 ? this.points[this.hover] : null;
-      },
-      tooltipX() {
-        return U.clamp(this.hoverPoint.x - 38, 4, this.width - 80);
-      },
-    },
-    methods: {
-      resize() {
-        if (!this.$refs.wrap) return;
-        const w = this.$refs.wrap.clientWidth;
-        if (w && Math.abs(w - this.width) > 2) this.width = w;
-      },
-      move(i) {
-        this.hover = i;
-      },
-    },
-    mounted() {
-      this.resize();
-      if (window.ResizeObserver) {
-        this.ro = new ResizeObserver(() => this.resize());
-        this.ro.observe(this.$refs.wrap);
-      } else {
-        window.addEventListener("resize", this.resize);
-      }
-    },
-    beforeUnmount() {
-      if (this.ro) this.ro.disconnect();
-      else window.removeEventListener("resize", this.resize);
-    },
-    template: `
-    <div class="line-chart" ref="wrap" @mouseleave="hover = -1">
-      <svg :width="width" :height="height" :viewBox="'0 0 ' + width + ' ' + height" role="img" aria-label="历年考察频率">
-        <defs>
-          <linearGradient id="areaGrad" x1="0" y1="0" x2="0" y2="1">
-            <stop offset="0" :stop-color="color" stop-opacity=".22" />
-            <stop offset="1" :stop-color="color" stop-opacity="0" />
-          </linearGradient>
-        </defs>
-        <g class="chart-grid">
-          <g v-for="t in yTicks" :key="t">
-            <line :x1="pad.l" :x2="width - pad.r" :y1="baseY - (t / max) * (height - pad.t - pad.b)" :y2="baseY - (t / max) * (height - pad.t - pad.b)" />
-            <text :x="pad.l - 10" :y="baseY - (t / max) * (height - pad.t - pad.b) + 4" text-anchor="end">{{ t }}</text>
-          </g>
-        </g>
-        <path :d="areaPath" fill="url(#areaGrad)" />
-        <path :d="linePath" fill="none" :stroke="color" stroke-width="2.4" stroke-linecap="round" />
-        <g v-for="(p, i) in points" :key="p.year">
-          <circle :cx="p.x" :cy="p.y" r="8" fill="transparent" @mouseenter="move(i)" />
-          <circle :cx="p.x" :cy="p.y" r="3.2" :fill="hover === i ? '#fff' : color" :stroke="color" stroke-width="2" />
-          <text v-if="!hover || hover === i" :x="p.x" :y="p.y - 10" text-anchor="middle" class="point-label">{{ p.count }}</text>
-        </g>
-        <line v-if="hoverPoint" :x1="hoverPoint.x" :x2="hoverPoint.x" :y1="pad.t" :y2="baseY" class="hover-line" />
-        <g v-if="hoverPoint" class="chart-tooltip">
-          <rect :x="tooltipX" :y="Math.max(4, hoverPoint.y - 44)" width="76" height="28" rx="8" />
-          <text :x="tooltipX + 38" :y="Math.max(4, hoverPoint.y - 44) + 18" text-anchor="middle">{{ hoverPoint.year }} 年 · {{ hoverPoint.count }} 题</text>
-        </g>
-        <g class="chart-x">
-          <text v-for="(l, i) in xLabels" :key="i" v-show="l.show" :x="l.x" :y="height - 9" text-anchor="middle">{{ l.year }}</text>
-        </g>
-      </svg>
-    </div>`,
-  };
-
-  YT.components.DonutChart = {
-    props: { segments: Array, total: Number },
-    computed: {
-      radius() {
-        return 34;
-      },
-      circ() {
-        return 2 * Math.PI * this.radius;
-      },
-      arcs() {
-        let offset = 0;
-        return this.segments
-          .filter((s) => s.count > 0)
-          .map((s) => {
-            const frac = this.total ? s.count / this.total : 0;
-            const dash = frac * this.circ;
-            const arc = { color: s.color, dash: dash - 2.5, gap: this.circ - dash + 2.5, offset: -offset };
-            offset += dash;
-            return arc;
-          });
-      },
-    },
-    template: `
-    <div class="donut">
-      <svg viewBox="0 0 92 92" class="donut-svg">
-        <circle cx="46" cy="46" :r="radius" fill="none" stroke="#deded2" stroke-width="10" />
-        <circle v-for="(a, i) in arcs" :key="i" cx="46" cy="46" :r="radius" fill="none" :stroke="a.color" stroke-width="10"
-          :stroke-dasharray="a.dash + ' ' + a.gap" :stroke-dashoffset="a.offset" transform="rotate(-90 46 46)" stroke-linecap="butt" />
-        <text x="46" y="43" text-anchor="middle" class="donut-num">{{ total }}</text>
-        <text x="46" y="57" text-anchor="middle" class="donut-label">题</text>
-      </svg>
+      <div class="idx-children" v-if="hasChildren && isOpen">
+        <KpNode v-for="child in node.children" :key="child.id" :node="child" :depth="depth + 1" :counts="counts" :open-map="openMap" :selected="selected" @select="$emit('select', $event)" @toggle="$emit('toggle', $event)" />
+      </div>
     </div>`,
   };
 
@@ -210,7 +53,7 @@
     props: { subjectId: String },
     data() {
       return {
-        D: D, S: S, activeType: "all", visible: 12, drawerOpen: false, startOpen: false,
+        D: D, S: S, activeType: "all", visible: 14, drawerOpen: false, startOpen: false,
         startCount: 10, startTypes: ["choice", "blank", "solution", "proof"],
         openMap: {}, selectedKp: "",
       };
@@ -246,6 +89,20 @@
       selectedPath() {
         return U.kpPath(this.selectedKp);
       },
+      nodeCode() {
+        let i = 0;
+        let found = 0;
+        const walk = (nodes) => {
+          for (let k = 0; k < nodes.length; k++) {
+            i += 1;
+            if (nodes[k].id === this.selectedKp) { found = i; return; }
+            if (nodes[k].children) walk(nodes[k].children);
+            if (found) return;
+          }
+        };
+        walk(this.tree);
+        return String(found || 1).padStart(2, "0");
+      },
       nodeQuestions() {
         if (!this.selectedKp) return this.qAll;
         return U.questionsForNode(this.subject.id, this.selectedKp);
@@ -274,34 +131,42 @@
       years() {
         return U.yearsOf(this.subject.id);
       },
+      latestYear() {
+        return this.years.length ? this.years[this.years.length - 1] : "—";
+      },
       yearSeries() {
         const map = {};
         this.nodeQuestions.forEach((q) => (map[q.year] = (map[q.year] || 0) + 1));
         return U.yearsOf(this.subject.id).map((y) => ({ year: y, count: map[y] || 0 }));
       },
+      yearMax() {
+        return Math.max(1, ...this.yearSeries.map((r) => r.count));
+      },
+      typeSegments() {
+        const total = this.nodeQuestions.length || 1;
+        return ["choice", "blank", "solution", "proof"].map((t) => {
+          const count = this.typeCounts[t] || 0;
+          return {
+            type: t,
+            name: TYPE_META[t].name,
+            short: TYPE_META[t].short,
+            color: TYPE_META[t].color,
+            count: count,
+            pct: Math.round((count / total) * 100),
+          };
+        });
+      },
       stats() {
         const qs = this.nodeQuestions;
-        const years = new Set(qs.map((q) => q.year));
-        const span = Math.max(1, this.years.length);
+        const have = new Set(qs.map((q) => q.year));
         const totalScore = qs.reduce((n, q) => n + q.score, 0);
-        const avg = span ? totalScore / span : 0;
         const totalAll = this.qAll.length || 1;
         return {
           total: qs.length,
-          years: years.size,
-          avg: avg,
+          years: have.size,
+          avg: totalScore / Math.max(1, this.years.length),
           totalPct: Math.min(100, Math.round((qs.length / totalAll) * 100)),
-          yearPct: Math.min(100, Math.round((years.size / span) * 100)),
-          avgPct: Math.min(100, Math.round((avg / 25) * 100)),
         };
-      },
-      donutSegments() {
-        return ["choice", "blank", "solution", "proof"].map((t) => ({
-          type: t, name: TYPE_META[t].name, color: TYPE_META[t].color, count: this.typeCounts[t] || 0,
-        }));
-      },
-      donutTotal() {
-        return this.nodeQuestions.length;
       },
       startPool() {
         return this.nodeQuestions.filter((q) => this.startTypes.indexOf(q.type) >= 0);
@@ -322,7 +187,7 @@
       },
       selectedKp() {
         this.activeType = "all";
-        this.visible = 12;
+        this.visible = 14;
       },
     },
     mounted() {
@@ -332,6 +197,23 @@
     methods: {
       t: U,
       go: U.go,
+      pad(n) {
+        return String(n || 0).padStart(2, "0");
+      },
+      rowPct(n) {
+        if (!n) return 0;
+        return Math.max(2, Math.round((n / this.yearMax) * 100));
+      },
+      subjectName(id) {
+        const s = D.subjects.find((x) => x.id === id);
+        return s ? s.name : id;
+      },
+      subjectQ(id) {
+        return U.questionsOf(id).length;
+      },
+      subjectCode(id) {
+        return { math1: "M-01", math2: "M-02", math3: "M-03", cs408: "CS-408", english1: "E-01", english2: "E-02" }[id] || "A-00";
+      },
       resetKp() {
         if (!this.subject) return;
         const tree = this.tree;
@@ -349,8 +231,8 @@
         this.selectedKp = id;
         this.drawerOpen = false;
         this.$nextTick(() => {
-          const el = document.querySelector(".kp-hero");
-          if (el && window.scrollY > 160) el.scrollIntoView({ behavior: "smooth", block: "start" });
+          const el = document.querySelector(".field-focus");
+          if (el && window.scrollY > 220) el.scrollIntoView({ behavior: "smooth", block: "start" });
         });
       },
       switchSubject(id) {
@@ -363,10 +245,10 @@
       },
       setType(id) {
         this.activeType = id;
-        this.visible = 12;
+        this.visible = 14;
       },
       loadMore() {
-        this.visible += 12;
+        this.visible += 14;
       },
       openStart() {
         this.startTypes = this.activeType === "all" ? ["choice", "blank", "solution", "proof"] : [this.activeType];
@@ -401,161 +283,176 @@
       },
     },
     template: `
-    <main class="dashboard-page">
-      <div class="container">
-        <div class="page-head">
-          <div class="page-head-left">
-            <div class="crumb"><a href="#/" @click.prevent="go('/')">首页</a><span>/</span><span>{{ group.name }}</span><span>/</span><b>考点地图</b></div>
-            <h1>{{ subject.name }} · 考点地图</h1>
-            <p>按考点归类 {{ qAll.length }} 道真题 · 覆盖 {{ years.length }} 个年份</p>
+    <main class="plate-page dashboard-page">
+      <div class="container plate-frame">
+        <header class="plate-mast">
+          <div class="plate-no"><span>PLATE</span><b>02</b><em>SYLLABUS MAP</em></div>
+          <div class="plate-title">
+            <span class="plate-kicker">KNOWLEDGE FIELD / {{ subjectCode(subject.id) }}</span>
+            <h1>考点地图</h1>
+            <p>{{ subject.name }} · {{ qAll.length }} 道真题 · {{ years.length }} 个年份归档</p>
           </div>
-          <div class="page-head-actions">
-            <button class="btn btn-ghost" @click="goPapers"><Icon name="calendar" :size="16" /> 年份试卷</button>
-            <button class="btn btn-primary" @click="openStart"><Icon name="spark" :size="16" /> 组合练习</button>
+          <div class="plate-actions">
+            <button class="btn btn-ghost" @click="goPapers"><Icon name="calendar" :size="15" /> 年份档案</button>
+            <button class="btn btn-primary" @click="openStart"><Icon name="spark" :size="15" /> 组合练习</button>
           </div>
-        </div>
+        </header>
 
-        <div class="subject-pills">
-          <button v-for="id in subjectIds" :key="id" class="subject-pill" :class="{active: id === subject.id}" @click="switchSubject(id)">
-            {{ D.subjects.find(s => s.id === id).name }}
+        <div class="terrain-switch" role="tablist" aria-label="切换科目">
+          <button v-for="id in subjectIds" :key="id" class="terrain-switch-item" :class="{ active: id === subject.id }" @click="switchSubject(id)">
+            <span>{{ subjectCode(id) }}</span>
+            <b>{{ subjectName(id) }}</b>
+            <em>{{ subjectQ(id) }} Q</em>
           </button>
-          <span class="subject-pills-note">切换科目不会丢失学习记录</span>
+          <span class="terrain-switch-note">切换科目不会丢失学习记录</span>
         </div>
 
-        <button class="mobile-kp-trigger" @click="drawerOpen = true">
-          <span class="mkt-left"><Icon name="list" :size="17" /><span>考点：<b>{{ selectedNode.name }}</b></span></span>
-          <span class="mkt-right">{{ nodeQuestions.length }} 题 <Icon name="chev-down" :size="16" /></span>
+        <button class="index-trigger" @click="drawerOpen = true">
+          <span><Icon name="list" :size="16" /><em>INDEX</em><b>{{ selectedNode.name }}</b></span>
+          <span>{{ nodeQuestions.length }} 题 <Icon name="chev-down" :size="15" /></span>
         </button>
 
-        <div class="dash-layout">
-          <aside class="kp-panel card">
-            <div class="kp-panel-head">
-              <div><Icon name="layers" :size="17" /><b>考点目录</b></div>
-              <span class="kp-panel-sub">{{ qAll.length }} 题</span>
-            </div>
-            <div class="kp-tree">
+        <div class="dash-sheet">
+          <aside class="dash-index">
+            <header class="index-head">
+              <div><span>INDEX / 考点索引</span><b>目录</b></div>
+              <em>{{ qAll.length }} Q</em>
+            </header>
+            <div class="index-scroll">
               <KpNode v-for="node in tree" :key="node.id" :node="node" :depth="0" :counts="counts" :open-map="openMap" :selected="selectedKp" @select="selectKp" @toggle="toggleNode" />
             </div>
-            <div class="kp-panel-foot">
-              <a class="side-link" href="#/wrong-book" @click.prevent="go('/wrong-book')">
-                <span class="side-link-icon"><Icon name="flag" :size="17" /></span>
-                <span><b>错题本</b><em>把不会的题集中刷</em></span>
-                <i v-if="S.wrong.length">{{ S.wrong.length }}</i>
+            <footer class="index-foot">
+              <a class="index-link" href="#/wrong-book" @click.prevent="go('/wrong-book')">
+                <Icon name="flag" :size="14" /><span>错题本</span><em>{{ S.wrong.length }}</em>
               </a>
-              <a class="side-link" href="#/assembly" @click.prevent="go('/assembly')">
-                <span class="side-link-icon"><Icon name="layers" :size="17" /></span>
-                <span><b>智能组卷</b><em>按考点自由拼一套</em></span>
+              <a class="index-link" href="#/assembly" @click.prevent="go('/assembly')">
+                <Icon name="layers" :size="14" /><span>智能组卷</span><em>→</em>
               </a>
-              <a class="side-link" href="#/profile" @click.prevent="go('/profile')">
-                <span class="side-link-icon"><Icon name="chart" :size="17" /></span>
-                <span><b>学习档案</b><em>练习与掌握情况</em></span>
+              <a class="index-link" href="#/profile" @click.prevent="go('/profile')">
+                <Icon name="chart" :size="14" /><span>学习档案</span><em>→</em>
               </a>
-              <div class="exam-countdown">
-                <span class="countdown-label">距离 27 考研</span>
-                <b>{{ examDays }}<em>天</em></b>
-                <span class="countdown-sub">今天也刷几道吧</span>
+              <div class="index-count">
+                <span>距 27 考研</span>
+                <b>{{ examDays }}</b><em>天</em>
               </div>
-            </div>
+            </footer>
           </aside>
 
-          <section class="dash-main">
-            <div class="kp-hero card">
-              <div class="kp-hero-head">
-                <div>
-                  <div class="kp-tagline"><span class="kp-tag">考点</span><span class="kp-path">{{ selectedPath.slice(0, -1).join(' / ') || '全部考点' }}</span></div>
-                  <h2>{{ selectedNode.name }}</h2>
+          <section class="dash-field">
+            <header class="field-focus">
+              <div class="field-focus-main">
+                <div class="field-coord">
+                  <span>{{ subjectCode(subject.id) }} / NODE {{ nodeCode }}</span>
+                  <i></i>
+                  <span>{{ selectedPath.slice(0, -1).join(' / ') || 'ROOT / 全部考点' }}</span>
                 </div>
-                <div class="kp-hero-actions">
-                  <span class="kp-total">共 <b>{{ nodeQuestions.length }}</b> 题</span>
-                  <button class="btn btn-soft" @click="openStart"><Icon name="spark" :size="15" /> 组合练习</button>
-                </div>
+                <h2>{{ selectedNode.name }}</h2>
+                <p class="field-path">{{ selectedPath.join(' / ') }}</p>
               </div>
+              <div class="field-focus-side">
+                <span>QUESTIONS ON THIS NODE</span>
+                <b>{{ nodeQuestions.length }}</b>
+                <em>道题</em>
+                <button class="field-start" @click="openStart"><Icon name="play" :size="13" /> 开始这组练习</button>
+              </div>
+            </header>
 
-              <div class="stat-grid">
-                <div class="stat-card">
-                  <div class="stat-label">该考点历史总计题数 <Icon name="info" :size="13" /></div>
-                  <div class="stat-value">{{ stats.total }}<em>题</em></div>
-                  <div class="stat-bar"><i :style="{ width: stats.totalPct + '%' }"></i></div>
-                  <div class="stat-foot">占{{ subject.name }}题库 {{ stats.totalPct }}%</div>
-                </div>
-                <div class="stat-card">
-                  <div class="stat-label">出现该考点的年份数量 <Icon name="info" :size="13" /></div>
-                  <div class="stat-value">{{ stats.years }}<em>年</em></div>
-                  <div class="stat-bar tone-purple"><i :style="{ width: stats.yearPct + '%' }"></i></div>
-                  <div class="stat-foot">出现率 {{ stats.yearPct }}%</div>
-                </div>
-                <div class="stat-card">
-                  <div class="stat-label">每年平均考察分值 <Icon name="info" :size="13" /></div>
-                  <div class="stat-value">{{ stats.avg.toFixed(1) }}<em>分/年</em></div>
-                  <div class="stat-bar tone-blue"><i :style="{ width: stats.avgPct + '%' }"></i></div>
-                  <div class="stat-foot">按 {{ years.length }} 个年份计算</div>
-                </div>
-                <div class="stat-donut">
-                  <div class="stat-donut-title">题型分布</div>
-                  <div class="stat-donut-body">
-                    <DonutChart :segments="donutSegments" :total="donutTotal" />
-                    <ul class="donut-legend">
-                      <li v-for="s in donutSegments" :key="s.type" :class="{muted: !s.count}">
-                        <span class="dot" :style="{ background: s.color }"></span>{{ s.name }}<b>{{ s.count }}</b>
-                      </li>
-                    </ul>
+            <div class="field-stats">
+              <div class="fs-cell">
+                <span>OCCURRENCE / 出现年份</span>
+                <b>{{ stats.years }}</b><em>年 / 共 {{ years.length }} 年</em>
+              </div>
+              <div class="fs-cell">
+                <span>AVERAGE / 年均分值</span>
+                <b>{{ stats.avg.toFixed(1) }}</b><em>分 / 年</em>
+              </div>
+              <div class="fs-cell">
+                <span>SHARE / 题库占比</span>
+                <b>{{ stats.totalPct }}</b><em>%</em>
+              </div>
+              <div class="fs-note">
+                <span>ARCHIVE RANGE</span>
+                <b>{{ years[0] }}—{{ latestYear }}</b>
+                <em>最近一次出现：{{ latestYear }} 年</em>
+              </div>
+            </div>
+
+            <div class="field-profile">
+              <section class="year-strata-panel">
+                <header class="fp-head">
+                  <span class="fp-kicker">01 / ANNUAL DENSITY</span>
+                  <h3>历年出现次数</h3>
+                </header>
+                <div class="year-strata">
+                  <div class="stratum" v-for="row in yearSeries" :key="row.year" :class="{ peak: row.count === yearMax, zero: !row.count }">
+                    <b>{{ row.year }}</b>
+                    <span class="stratum-track"><i :style="{ width: rowPct(row.count) + '%' }"></i></span>
+                    <em>{{ row.count }}</em>
                   </div>
                 </div>
-              </div>
+              </section>
+
+              <section class="type-mix-panel">
+                <header class="fp-head">
+                  <span class="fp-kicker">02 / TYPE COMPOSITION</span>
+                  <h3>题型构成</h3>
+                </header>
+                <div class="type-band" v-if="nodeQuestions.length" aria-hidden="true">
+                  <i v-for="s in typeSegments" :key="s.type" :style="{ width: s.pct + '%', background: s.color }" :title="s.name + ' ' + s.count + ' 题'"></i>
+                </div>
+                <div class="type-band-empty" v-else>NO DATA</div>
+                <ul class="type-key">
+                  <li v-for="s in typeSegments" :key="s.type" :class="{ muted: !s.count }">
+                    <span class="tk-dot" :style="{ background: s.color }"></span>
+                    <b>{{ s.name }}</b>
+                    <em>{{ s.count }}</em>
+                    <small>{{ s.pct }}%</small>
+                  </li>
+                </ul>
+                <p class="type-foot">共 {{ nodeQuestions.length }} 题 · 按题型归档</p>
+              </section>
             </div>
 
-            <div class="chart-card card">
-              <div class="chart-head">
-                <div><h3>历年考察频率分布</h3><p>该考点在 {{ years[0] }}–{{ years[years.length - 1] }} 年间每年出现的题目数量</p></div>
-                <span class="legend-dot"><i></i>{{ selectedNode.name }}</span>
-              </div>
-              <LineChart :series="yearSeries" color="#bf6741" />
-            </div>
-
-            <div class="q-section">
-              <div class="q-toolbar">
-                <div class="q-tabs">
-                  <button v-for="t in types" :key="t.id" class="q-tab" :class="{active: activeType === t.id}" @click="setType(t.id)">
+            <section class="field-ledger" id="ledger">
+              <div class="ledger-toolbar">
+                <div class="ledger-tabs" role="tablist">
+                  <button v-for="t in types" :key="t.id" class="ledger-tab" :class="{ active: activeType === t.id }" @click="setType(t.id)">
                     {{ t.name }}<i>{{ t.count }}</i>
                   </button>
                 </div>
-                <button class="btn btn-primary q-start" @click="openStart"><Icon name="play" :size="15" /> 组合练习</button>
+                <span class="ledger-count">SHOWING {{ visibleQuestions.length }} / {{ filtered.length }}</span>
               </div>
-              <div class="q-list-head">
-                <span>题目列表</span>
-                <span class="q-list-sort">按年份排序 <Icon name="chev-down" :size="13" /></span>
+              <div class="ledger-columns" aria-hidden="true">
+                <span>NO.</span><span>YEAR</span><span>ITEM / 题目</span><span>TYPE</span><span></span>
               </div>
-              <div class="q-grid" v-if="visibleQuestions.length">
-                <a v-for="q in visibleQuestions" :key="q.id" class="q-card" :href="'#/question/' + q.id" @click.prevent="openQuestion(q)">
-                  <div class="q-card-top">
-                    <span class="q-year">{{ q.year }}</span>
-                    <span class="q-no">第 {{ q.indexNo }} 题</span>
-                    <span class="q-arrow"><Icon name="chev-right" :size="15" /></span>
-                  </div>
-                  <div class="q-card-bottom">
-                    <span class="tag tag-type" :class="'type-' + q.type">{{ q.typeName }}</span>
-                    <span class="diff" :class="'diff-' + q.difficulty">{{ q.difficultyName }}</span>
-                    <span class="mastered-mark" v-if="S.mastery[q.id]" title="已标记掌握"><Icon name="check" :size="12" /></span>
-                  </div>
+              <div class="ledger-list" v-if="visibleQuestions.length">
+                <a v-for="q in visibleQuestions" :key="q.id" class="ledger-row" :href="'#/question/' + q.id" @click.prevent="openQuestion(q)">
+                  <span class="lr-no">{{ pad(q.indexNo) }}</span>
+                  <span class="lr-year">{{ q.year }}</span>
+                  <span class="lr-main">
+                    <b>{{ q.kpName }}</b>
+                    <span>{{ q.typeName }} · {{ q.score }} 分 · {{ q.difficultyName }}<i class="lr-done" v-if="S.mastery[q.id]">已标记</i></span>
+                  </span>
+                  <span class="lr-type">{{ q.typeName }}</span>
+                  <span class="lr-go"><Icon name="arrow-right" :size="15" /></span>
                 </a>
               </div>
-              <div class="empty-state card" v-else>
-                <span class="empty-icon"><Icon name="folder" :size="28" /></span>
-                <h3>这个筛选下还没有题目</h3>
-                <p>换一个题型，或回到「全部」看看。</p>
-                <button class="btn btn-ghost" @click="setType('all')">查看全部题型</button>
+              <div class="ledger-empty" v-else>
+                <span class="le-mark">—</span>
+                <div><b>这个筛选下还没有题目</b><p>换一个题型，或回到「全部」看看。</p></div>
+                <button class="btn btn-ghost btn-sm" @click="setType('all')">查看全部题型</button>
               </div>
-              <div class="load-more" v-if="filtered.length > visible">
-                <button class="btn btn-ghost" @click="loadMore">加载更多（还有 {{ filtered.length - visible }} 题）<Icon name="chev-down" :size="15" /></button>
+              <div class="ledger-more" v-if="filtered.length > visible">
+                <button class="btn btn-ghost btn-sm" @click="loadMore">加载更多 · 还有 {{ filtered.length - visible }} 题 <Icon name="chev-down" :size="14" /></button>
               </div>
-            </div>
+            </section>
           </section>
         </div>
       </div>
 
       <div class="kp-drawer-mask" v-if="drawerOpen" @click.self="drawerOpen = false">
-        <div class="kp-drawer card">
-          <div class="kp-drawer-head"><b>选择考点</b><button class="icon-btn" @click="drawerOpen = false"><Icon name="x" :size="17" /></button></div>
+        <div class="kp-drawer">
+          <div class="kp-drawer-head"><b>INDEX / 选择考点</b><button class="icon-btn" @click="drawerOpen = false"><Icon name="x" :size="17" /></button></div>
           <div class="kp-drawer-tree">
             <KpNode v-for="node in tree" :key="node.id" :node="node" :depth="0" :counts="counts" :open-map="openMap" :selected="selectedKp" @select="selectKp" @toggle="toggleNode" />
           </div>
@@ -563,9 +460,9 @@
       </div>
 
       <div class="modal-mask" v-if="startOpen" @click.self="startOpen = false">
-        <div class="modal card">
+        <div class="modal plate-modal">
           <div class="modal-head">
-            <div><span class="modal-eyebrow">组合练习</span><h3>{{ selectedNode.name }}</h3></div>
+            <div><span class="modal-eyebrow">DRILL / 组合练习</span><h3>{{ selectedNode.name }}</h3></div>
             <button class="icon-btn" @click="startOpen = false"><Icon name="x" :size="17" /></button>
           </div>
           <div class="field">

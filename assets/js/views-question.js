@@ -1,4 +1,4 @@
-/* Question detail */
+/* Question detail — specimen sheet */
 (function () {
   const YT = window.YT;
   const U = YT.util;
@@ -34,7 +34,7 @@
         if (list.length < 4) {
           list = list.concat(U.questionsOf(q.subject).filter((x) => x.id !== q.id && x.type === q.type && x.kpId !== q.kpId));
         }
-        return list.slice(0, 6);
+        return list.slice(0, 5);
       },
       siblings() {
         return this.question ? U.questionsOf(this.question.subject) : [];
@@ -70,6 +70,16 @@
       imageUrl() {
         return this.question ? U.imageUrl(this.question) : "";
       },
+      specimenCode() {
+        if (!this.question) return "";
+        return (this.subject.code || this.question.subject.toUpperCase()) + " · " + String(this.question.year).slice(2) + " · " + this.pad(this.question.indexNo);
+      },
+      isFav() {
+        return !!this.question && S.favorites.indexOf(this.question.id) >= 0;
+      },
+      isWrong() {
+        return !!this.question && S.wrong.indexOf(this.question.id) >= 0;
+      },
     },
     watch: {
       questionId: {
@@ -93,6 +103,9 @@
       },
       syncNote() {
         this.noteText = (this.question && S.notes[this.question.id]) || "";
+      },
+      pad(n) {
+        return String(n || 0).padStart(2, "0");
       },
       fmt(s) {
         return U.fmt(s);
@@ -169,211 +182,244 @@
       },
     },
     template: `
-    <main class="question-page" v-if="question">
+    <main class="specimen-page" v-if="question">
       <div class="container">
-        <div class="bare-crumb">
-          <div class="crumb">
-            <a href="#/" @click.prevent="go('/')">首页</a><span>/</span>
-            <a :href="'#/dashboard/' + question.subject" @click.prevent="go('/dashboard/' + question.subject)">{{ subject.name }}</a><span>/</span>
-            <a :href="'#/papers/' + question.subject" @click.prevent="go('/papers/' + question.subject)">{{ question.year }} 年试卷</a><span>/</span>
-            <b>第 {{ question.indexNo }} 题</b>
+        <header class="plate-mast specimen-mast">
+          <div class="plate-no"><span>PLATE</span><b>07</b></div>
+          <div class="plate-title">
+            <span class="plate-kicker">QUESTION SPECIMEN / 单题标本</span>
+            <div class="specimen-crumb">
+              <a href="#/" @click.prevent="go('/')">总览</a><i>/</i>
+              <a :href="'#/dashboard/' + question.subject" @click.prevent="go('/dashboard/' + question.subject)">{{ subject.name }}</a><i>/</i>
+              <a :href="'#/papers/' + question.subject + '?year=' + question.year" @click.prevent="goPapers">{{ question.year }} 年卷</a><i>/</i>
+              <b>第 {{ question.indexNo }} 题</b>
+            </div>
           </div>
-        </div>
+          <div class="mast-tools">
+            <a href="#/" class="bare-link" @click.prevent="go('/dashboard/' + question.subject)">返回考点图</a>
+            <button class="tool-btn" :class="{ on: isFav }" @click="toggleFav">
+              <Icon name="star" :size="13" /> {{ isFav ? '已收藏' : '收藏' }}
+            </button>
+            <button class="tool-btn" :class="{ on: isWrong }" @click="toggleWrong">
+              <Icon name="flag" :size="13" /> {{ isWrong ? '在错题本' : '记错题' }}
+            </button>
+            <button class="tool-btn" @click="printOne"><Icon name="printer" :size="13" /> 打印</button>
+          </div>
+        </header>
 
-        <div class="q-detail-layout">
-          <div class="q-main">
-            <article class="q-detail-card card" v-math>
-              <div class="q-topline">
-                <span class="tag tag-type" :class="'type-' + question.type">{{ question.typeName }}</span>
-                <span class="chip chip-orange">{{ question.year }} 年</span>
-                <span class="diff" :class="'diff-' + question.difficulty">{{ question.difficultyName }}</span>
-                <span class="tag" style="background:var(--paper);color:var(--muted)">{{ question.score }} 分</span>
-                <span class="crumb"><Icon name="book" :size="12" /> {{ question.subjectName }}</span>
-              </div>
-
-              <div class="q-title-row">
-                <h1>{{ question.kpName }}</h1>
-                <div class="q-tools">
-                  <button class="icon-btn" :class="{on: S.favorites.indexOf(question.id) >= 0}" :title="S.favorites.indexOf(question.id) >= 0 ? '取消收藏' : '收藏'" @click="toggleFav">
-                    <Icon name="star" :size="17" />
-                  </button>
-                  <button class="icon-btn" :class="{on: S.wrong.indexOf(question.id) >= 0}" :title="S.wrong.indexOf(question.id) >= 0 ? '移出错题本' : '加入错题本'" @click="toggleWrong">
-                    <Icon name="flag" :size="17" />
-                  </button>
-                  <button class="icon-btn" title="打印本题" @click="printOne">
-                    <Icon name="printer" :size="17" />
-                  </button>
-                </div>
-              </div>
-              <div class="q-submeta">
-                <span>{{ question.year }} 年 · 第 {{ question.indexNo }} 题</span>
-                <span>考点：<b>{{ kpNames.slice(-1)[0] }}</b></span>
-                <span>来源：<b>{{ question.source }}</b></span>
-                <span v-if="mastery" style="display:inline-flex;align-items:center;gap:4px;color:#0f7a38">
-                  <Icon name="check-circle" :size="12" /> {{ masteryName() }}
-                </span>
-              </div>
-
-              <div class="passage-box" v-if="question.passage">
-                <h4>{{ question.passageTitle || '阅读材料' }}</h4>
-                <div class="passage-text" v-html="para(question.passage)"></div>
-              </div>
-
-              <div class="q-shot-wrap" v-if="imageUrl">
-                <img class="q-shot" :src="imageUrl" alt="原题截图" loading="lazy" />
-                <span class="q-shot-note">原题截图 · 公式与图形以原卷为准</span>
-              </div>
-
-              <div class="q-stem" v-if="!imageUrl" v-html="fmt(question.stem)"></div>
-
-              <div class="q-options compact" v-if="imageUrl && isChoice && question.options && question.options.length">
-                <button v-for="(opt, i) in question.options" :key="'s' + i" class="q-option"
-                  :class="{
-                    selected: selected === i && !revealed,
-                    correct: revealed && i === correctIndex,
-                    wrong: revealed && selected === i && i !== correctIndex
-                  }"
-                  :disabled="revealed" @click="choose(i)" :title="opt">
-                  <span class="opt-key">{{ 'ABCDEF'[i] }}</span>
-                </button>
-              </div>
-
-              <div class="q-options" v-if="!imageUrl && isChoice && question.options && question.options.length">
-                <button v-for="(opt, i) in question.options" :key="i" class="q-option"
-                  :class="{
-                    selected: selected === i && !revealed,
-                    correct: revealed && i === correctIndex,
-                    wrong: revealed && selected === i && i !== correctIndex
-                  }"
-                  :disabled="revealed" @click="choose(i)">
-                  <span class="opt-key">{{ 'ABCDEF'[i] }}</span>
-                  <span class="opt-text" v-html="fmt(opt)"></span>
-                  <span class="opt-result" v-if="revealed && i === correctIndex">正确答案</span>
-                  <span class="opt-result" v-else-if="revealed && selected === i">你的选择</span>
-                </button>
-              </div>
-
-              <div class="q-answer-row" v-if="!revealed">
-                <button class="btn btn-primary" @click="submit" v-if="isChoice"><Icon name="check-circle" :size="16" /> 提交答案</button>
-                <button class="btn btn-ghost" @click="reveal"><Icon name="eye" :size="16" /> 查看答案与解析</button>
-                <span class="q-reveal-note">{{ isChoice ? '选择后提交，答错会自动加入错题本' : '主观题建议先在纸上作答，再核对解析' }}</span>
-              </div>
-
-              <div class="answer-box" v-if="revealed">
-                <div class="answer-box-head"><Icon name="check-circle" :size="15" /> 参考答案</div>
-                <div class="answer-main" v-html="fmt(question.answer)"></div>
-              </div>
-
-              <div class="analysis-box" v-if="revealed">
-                <h4><Icon name="spark" :size="14" /> 题目解析</h4>
-                <div class="analysis-text" v-html="para(question.analysis)"></div>
-              </div>
-
-              <div class="self-grade" v-if="revealed">
-                <span>这道题你掌握得怎么样？</span>
-                <div class="self-grade-actions">
-                  <button class="btn btn-ghost grade-btn ok" :class="{on: mastery === 1}" @click="grade(1)">简单</button>
-                  <button class="btn btn-ghost grade-btn mid" :class="{on: mastery === 2}" @click="grade(2)">一般</button>
-                  <button class="btn btn-ghost grade-btn bad" :class="{on: mastery === 3}" @click="grade(3)">不会</button>
-                </div>
-              </div>
-
-              <div class="q-mastery-bar">
-                <span v-if="isChoice && revealed" :style="{ color: isRight ? '#0f7a38' : '#e0483a' }">
-                  {{ isRight ? '回答正确，继续保持' : '回答错误，已放入错题本，记得回刷' }}
-                </span>
-                <span v-else>做完记得标记掌握程度，学习档案会更准确</span>
-                <button class="btn btn-soft btn-sm" v-if="isChoice && revealed" @click="toggleWrong">
-                  <Icon name="flag" :size="14" /> {{ S.wrong.indexOf(question.id) >= 0 ? '移出错题本' : '加入错题本' }}
-                </button>
-              </div>
-            </article>
-
-            <div class="q-nav">
-              <button class="q-nav-btn" v-if="prevQ" @click="openQuestion(prevQ)">
-                <span><Icon name="arrow-left" :size="12" /> 上一题</span>
-                <b>{{ prevQ.year }} 年第 {{ prevQ.indexNo }} 题</b>
-              </button>
-              <span v-else></span>
-              <button class="q-nav-btn next" v-if="nextQ" @click="openQuestion(nextQ)">
-                <span>下一题 <Icon name="arrow-right" :size="12" /></span>
-                <b>{{ nextQ.year }} 年第 {{ nextQ.indexNo }} 题</b>
-              </button>
+        <div class="specimen-sheet">
+          <aside class="specimen-margin">
+            <div class="specimen-code">
+              <span class="margin-label">SPECIMEN NO.</span>
+              <b>{{ specimenCode }}</b>
+              <span class="code-sub">ITEM {{ pad(index + 1) }} OF {{ pad(siblings.length) }}</span>
             </div>
 
-            <section class="comments-card card">
-              <h3><Icon name="edit" :size="16" /> 研友讨论 <span style="font-weight:500;font-size:11px;color:var(--faint)">（{{ comments.length }}）</span></h3>
-              <div class="comment-input-row">
-                <span class="comment-avatar">{{ initial }}</span>
-                <div style="flex:1;min-width:0">
-                  <textarea class="comment-input" v-model="commentText" maxlength="300" placeholder="说说你的思路，或留下复习提醒…"></textarea>
-                  <div style="display:flex;justify-content:flex-end;margin-top:7px">
-                    <button class="btn btn-primary btn-sm" @click="addComment">发布评论</button>
-                  </div>
-                </div>
+            <dl class="specimen-meta">
+              <div><dt>科目</dt><dd>{{ question.subjectName }}</dd></div>
+              <div><dt>年份</dt><dd>{{ question.year }}</dd></div>
+              <div><dt>题号</dt><dd>{{ pad(question.indexNo) }}</dd></div>
+              <div><dt>题型</dt><dd>{{ question.typeName }}</dd></div>
+              <div><dt>分值</dt><dd>{{ question.score }} 分</dd></div>
+              <div>
+                <dt>难度</dt>
+                <dd class="meta-diff">
+                  <em v-for="n in 3" :key="n" :class="{ lit: question.difficulty >= n }"></em>
+                  <span>{{ question.difficultyName }}</span>
+                </dd>
               </div>
-              <div class="comment-list" v-if="comments.length">
-                <div class="comment-item" v-for="(c, i) in comments" :key="i">
-                  <span class="comment-avatar">{{ c.name.slice(0, 1) }}</span>
-                  <div class="comment-body">
-                    <div class="comment-meta"><b>{{ c.name }}</b><span>{{ U.relTime(c.at) }}</span></div>
-                    <div class="comment-text">{{ c.text }}</div>
-                  </div>
-                </div>
-              </div>
-              <p class="comment-empty" v-else>还没有评论，来说说你的解法吧。评论仅保存在本机浏览器。</p>
-            </section>
-          </div>
+              <div><dt>掌握</dt><dd :class="{ 'meta-alert': mastery === 3 }">{{ masteryName() }}</dd></div>
+            </dl>
 
-          <aside class="q-side">
-            <section class="side-card card">
-              <h3><Icon name="info" :size="15" /> 题目信息</h3>
-              <div class="side-stat-row"><span>所属科目</span><b>{{ question.subjectName }}</b></div>
-              <div class="side-stat-row"><span>年份</span><b>{{ question.year }} 年</b></div>
-              <div class="side-stat-row"><span>题号</span><b>第 {{ question.indexNo }} 题</b></div>
-              <div class="side-stat-row"><span>题型 / 分值</span><b>{{ question.typeName }} · {{ question.score }} 分</b></div>
-              <div class="side-stat-row"><span>难度</span><b>{{ question.difficultyName }}</b></div>
-              <div class="side-stat-row"><span>掌握程度</span><b>{{ masteryName() }}</b></div>
-              <div style="margin-top:9px">
-                <div class="side-stat-row" style="padding-bottom:4px"><span>考点路径</span></div>
-                <div class="side-kp-path">
-                  <span v-for="(n, i) in kpNames" :key="i">{{ n }}</span>
-                </div>
-              </div>
-              <div style="margin-top:12px;display:flex;gap:7px">
-                <button class="btn btn-soft btn-sm" style="flex:1" @click="goPapers"><Icon name="calendar" :size="14" /> 本年份试卷</button>
-                <button class="btn btn-ghost btn-sm" style="flex:1" @click="go('/dashboard/' + question.subject)"><Icon name="target" :size="14" /> 同考点</button>
-              </div>
-            </section>
+            <div class="specimen-path">
+              <span class="margin-label">INDEX PATH</span>
+              <ol>
+                <li v-for="(n, i) in kpNames" :key="i"><i>{{ pad(i + 1) }}</i><span>{{ n }}</span></li>
+              </ol>
+            </div>
 
-            <section class="side-card card">
-              <h3><Icon name="edit" :size="15" /> 我的笔记</h3>
-              <textarea class="note-area" v-model="noteText" maxlength="800" placeholder="记录易错点、解题步骤、公式…"></textarea>
-              <div class="note-actions">
-                <button class="btn btn-ghost btn-sm" @click="saveNote"><Icon name="check" :size="13" /> 保存笔记</button>
-              </div>
-            </section>
+            <label class="specimen-note">
+              <span class="margin-label">FIELD NOTE / 批注</span>
+              <textarea v-model="noteText" maxlength="800" placeholder="记录易错点、解题步骤、公式…"></textarea>
+              <span class="note-foot">
+                <em>{{ noteText.length }}/800</em>
+                <button class="tool-btn" @click="saveNote"><Icon name="check" :size="12" /> 保存批注</button>
+              </span>
+            </label>
 
-            <section class="side-card card" v-if="related.length">
-              <h3><Icon name="layers" :size="15" /> 相关题目</h3>
-              <div class="related-grid" style="grid-template-columns:1fr">
-                <a class="related-item" v-for="r in related" :key="r.id" :href="'#/question/' + r.id" @click.prevent="openQuestion(r)">
-                  <b>{{ r.year }}</b><span>第 {{ r.indexNo }} 题 · {{ r.typeName }}</span>
-                </a>
-              </div>
-            </section>
+            <div class="specimen-jump">
+              <button @click="goPapers"><Icon name="calendar" :size="13" /> {{ question.year }} 年整卷</button>
+              <button @click="go('/dashboard/' + question.subject)"><Icon name="target" :size="13" /> 回到考点图</button>
+            </div>
           </aside>
+
+          <article class="specimen-main" v-math>
+            <header class="specimen-head">
+              <div class="specimen-head-top">
+                <span class="specimen-kicker">{{ question.typeName }} · {{ question.score }} PTS</span>
+                <span class="specimen-source">{{ question.source }}</span>
+              </div>
+              <h1>{{ question.kpName }}</h1>
+              <div class="specimen-rule">
+                <span>{{ question.year }} 年第 {{ question.indexNo }} 题</span>
+                <span class="difficulty-label"><i v-for="n in 3" :key="'h' + n" :class="{ lit: question.difficulty >= n }"></i>{{ question.difficultyName }}</span>
+                <span v-if="mastery" class="mastery-flag" :class="'m-' + mastery">掌握：{{ masteryName() }}</span>
+              </div>
+            </header>
+
+            <div class="specimen-body">
+              <section class="spec-passage" v-if="question.passage">
+                <span class="spec-label">{{ question.passageTitle || '阅读材料' }}</span>
+                <div class="spec-passage-text" v-html="para(question.passage)"></div>
+              </section>
+
+              <section class="spec-shot" v-if="imageUrl">
+                <img :src="imageUrl" alt="原题截图" loading="lazy" />
+                <span class="spec-shot-note">原题截图 · 公式与图形以原卷为准</span>
+              </section>
+
+              <section class="spec-stem" v-if="!imageUrl" v-html="fmt(question.stem)"></section>
+
+              <div class="spec-choices" v-if="imageUrl && isChoice && question.options && question.options.length">
+                <span class="spec-label">OPTIONS</span>
+                <div class="spec-choice-keys">
+                  <button v-for="(opt, i) in question.options" :key="'s' + i" class="spec-key"
+                    :class="{
+                      picked: selected === i && !revealed,
+                      'key-correct': revealed && i === correctIndex,
+                      'key-wrong': revealed && selected === i && i !== correctIndex
+                    }"
+                    :disabled="revealed" @click="choose(i)" :title="opt">
+                    {{ 'ABCDEF'[i] }}
+                  </button>
+                </div>
+              </div>
+
+              <section class="spec-choices" v-if="!imageUrl && isChoice && question.options && question.options.length">
+                <div class="spec-choice" v-for="(opt, i) in question.options" :key="i">
+                  <button class="spec-choice-key"
+                    :class="{
+                      picked: selected === i && !revealed,
+                      'key-correct': revealed && i === correctIndex,
+                      'key-wrong': revealed && selected === i && i !== correctIndex
+                    }"
+                    :disabled="revealed" @click="choose(i)">{{ 'ABCDEF'[i] }}</button>
+                  <div class="spec-choice-text" v-html="fmt(opt)"></div>
+                  <span class="spec-choice-mark" v-if="revealed && i === correctIndex">正确答案</span>
+                  <span class="spec-choice-mark wrong-mark" v-else-if="revealed && selected === i">你的选择</span>
+                </div>
+              </section>
+
+              <div class="spec-actions" v-if="!revealed">
+                <button class="spec-submit" @click="submit" v-if="isChoice">
+                  <span>提交答案</span><Icon name="check-circle" :size="15" />
+                </button>
+                <button class="spec-reveal" @click="reveal">
+                  <Icon name="eye" :size="15" /><span>查看答案与解析</span>
+                </button>
+                <p class="spec-hint">{{ isChoice ? '选择后提交，答错会自动收进错题本' : '主观题建议先在纸上作答，再核对解析' }}</p>
+              </div>
+
+              <section class="spec-ref">
+                <div class="spec-ref-head">
+                  <span class="spec-label">REFERENCE / 参考答案</span>
+                  <span class="ref-stamp" v-if="revealed">UNSEALED</span>
+                </div>
+                <template v-if="revealed">
+                  <div class="spec-answer" v-html="fmt(question.answer)"></div>
+                  <div class="spec-analysis">
+                    <span class="spec-label">ANALYSIS / 解析</span>
+                    <div class="spec-analysis-text" v-html="para(question.analysis)"></div>
+                  </div>
+                  <div class="spec-grade">
+                    <span>这道题掌握得怎么样？</span>
+                    <div class="spec-grade-actions">
+                      <button :class="{ on: mastery === 1 }" @click="grade(1)">简单</button>
+                      <button :class="{ on: mastery === 2 }" @click="grade(2)">一般</button>
+                      <button :class="{ on: mastery === 3 }" @click="grade(3)">不会</button>
+                    </div>
+                  </div>
+                  <div class="spec-result-line" v-if="isChoice">
+                    <span :class="isRight ? 'res-ok' : 'res-bad'">
+                      {{ isRight ? '回答正确，保持节奏' : '回答错误，已放入错题本，记得回刷' }}
+                    </span>
+                    <button class="tool-btn" @click="toggleWrong">
+                      <Icon name="flag" :size="12" /> {{ isWrong ? '移出错题本' : '加入错题本' }}
+                    </button>
+                  </div>
+                </template>
+                <p class="spec-ref-locked" v-else>答案封存中。作答或点击「查看答案与解析」后开卷。</p>
+              </section>
+            </div>
+          </article>
         </div>
+
+        <footer class="specimen-foot">
+          <section class="margin-notes">
+            <header class="foot-head">
+              <span class="margin-label">MARGIN NOTES / 研友批注</span>
+              <b>{{ comments.length }}</b>
+            </header>
+            <div class="margin-note-input">
+              <span class="note-sign">{{ initial }}</span>
+              <div class="note-field">
+                <textarea v-model="commentText" maxlength="300" placeholder="说说你的思路，或留下复习提醒…"></textarea>
+                <button class="tool-btn" @click="addComment">写入批注</button>
+              </div>
+            </div>
+            <div class="margin-note-list" v-if="comments.length">
+              <div class="margin-note" v-for="(c, i) in comments" :key="i">
+                <span class="note-no">{{ pad(i + 1) }}</span>
+                <div class="note-body">
+                  <div class="note-meta"><b>{{ c.name }}</b><span>{{ U.relTime(c.at) }}</span></div>
+                  <p>{{ c.text }}</p>
+                </div>
+              </div>
+            </div>
+            <p class="margin-note-empty" v-else>还没有批注。第一条思路，从这里写下。</p>
+          </section>
+
+          <section class="cross-ref">
+            <header class="foot-head">
+              <span class="margin-label">CROSS REFERENCE / 相关题</span>
+              <a href="#/" class="bare-link" @click.prevent="go('/dashboard/' + question.subject)">考点图 →</a>
+            </header>
+            <div class="cross-ref-list" v-if="related.length">
+              <a class="cross-ref-row" v-for="r in related" :key="r.id" :href="'#/question/' + r.id" @click.prevent="openQuestion(r)">
+                <span class="xref-year">{{ r.year }}</span>
+                <span class="xref-main">{{ r.kpName }}</span>
+                <span class="xref-type">{{ r.typeName }}</span>
+                <span class="xref-no">{{ pad(r.indexNo) }}</span>
+              </a>
+            </div>
+            <p class="cross-ref-empty" v-else>暂无关联题目。</p>
+          </section>
+        </footer>
+
+        <nav class="specimen-pager">
+          <button class="pager-btn" v-if="prevQ" @click="openQuestion(prevQ)">
+            <span class="pager-dir"><Icon name="arrow-left" :size="12" /> PREV</span>
+            <b>{{ prevQ.year }} 年 第 {{ prevQ.indexNo }} 题</b>
+            <em>{{ prevQ.kpName }}</em>
+          </button>
+          <span class="pager-gap" v-else></span>
+          <button class="pager-btn next" v-if="nextQ" @click="openQuestion(nextQ)">
+            <span class="pager-dir">NEXT <Icon name="arrow-right" :size="12" /></span>
+            <b>{{ nextQ.year }} 年 第 {{ nextQ.indexNo }} 题</b>
+            <em>{{ nextQ.kpName }}</em>
+          </button>
+          <span class="pager-gap" v-else></span>
+        </nav>
       </div>
     </main>
 
-    <main class="question-page" v-else>
+    <main class="specimen-page" v-else>
       <div class="container">
-        <div class="empty-state card" style="margin-top:30px">
-          <span class="empty-icon"><Icon name="alert" :size="28" /></span>
-          <h3>没有找到这道题</h3>
-          <p>题目链接可能已经失效，去题库里继续找题吧。</p>
-          <button class="btn btn-primary" @click="go('/dashboard/math1')">回到题库</button>
+        <div class="specimen-missing">
+          <span class="margin-label">SPECIMEN NOT FOUND</span>
+          <h2>这道题不在标本册里</h2>
+          <p>题目链接可能已经失效，回到考点图继续找题。</p>
+          <button class="spec-submit" @click="go('/dashboard/math1')"><span>回到题库</span><Icon name="arrow-right" :size="15" /></button>
         </div>
       </div>
     </main>`,

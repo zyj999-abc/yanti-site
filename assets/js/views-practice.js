@@ -1,4 +1,4 @@
-/* Practice */
+/* Practice — focused drill mode */
 (function () {
   const YT = window.YT;
   const U = YT.util;
@@ -108,6 +108,9 @@
       if (this.timer) clearInterval(this.timer);
     },
     methods: {
+      pad(n) {
+        return String(n || 0).padStart(2, "0");
+      },
       fmt(s) {
         return U.fmt(s);
       },
@@ -227,152 +230,206 @@
       durationText: durationText,
     },
     template: `
-    <main class="practice-page" v-if="!finished && total">
-      <div class="container practice-shell">
-        <div class="practice-head">
-          <div>
-            <h1>{{ title }}</h1>
-            <p>{{ subjectName }} · 共 {{ total }} 题 · 已答 {{ answeredCount }} 题 · 用时 {{ elapsedText }}</p>
-          </div>
-          <button class="btn btn-ghost btn-sm" @click="exit"><Icon name="x" :size="15" /> 退出</button>
-        </div>
-
-        <div class="practice-progress card">
-          <div class="pp-top">
-            <span>第 <b>{{ idx + 1 }}</b> / {{ total }} 题</span>
-            <span>正确 <b style="color:#0f7a38">{{ rightCount }}</b> · 错误 <b style="color:#e0483a">{{ wrongCount }}</b></span>
-          </div>
-          <div class="pp-bar"><i :style="{ width: progressPct + '%' }"></i></div>
-          <div class="pp-dots">
-            <span v-for="(m, i) in marks" :key="i" class="pp-dot" :class="dotClass(i)"></span>
-          </div>
-        </div>
-
-        <article class="practice-card card" v-if="current" v-math>
-          <div class="q-topline">
-            <span class="tag tag-type" :class="'type-' + current.type">{{ current.typeName }}</span>
-            <span class="chip chip-orange">{{ current.year }} 年</span>
-            <span class="diff" :class="'diff-' + current.difficulty">{{ current.difficultyName }}</span>
-            <span class="tag" style="background:var(--paper);color:var(--muted)">{{ current.score }} 分</span>
-            <span class="crumb" style="margin-left:auto;font-size:11px"><Icon name="target" :size="12" /> {{ current.kpName }}</span>
-          </div>
-          <div class="q-title-row">
-            <h1>{{ current.kpName }}</h1>
-          </div>
-          <div class="q-submeta">
-            <span>{{ current.year }} 年 · 第 {{ current.indexNo }} 题</span>
-            <span>考点：<b>{{ current.kpName }}</b></span>
-          </div>
-
-          <div class="passage-box" v-if="current.passage">
-            <h4>{{ current.passageTitle || '阅读材料' }}</h4>
-            <div class="passage-text" v-html="para(current.passage)"></div>
-          </div>
-
-          <div class="q-shot-wrap" v-if="imageUrl">
-            <img class="q-shot" :src="imageUrl" alt="原题截图" loading="lazy" />
-            <span class="q-shot-note">原题截图 · 公式与图形以原卷为准</span>
-          </div>
-
-          <div class="q-stem" v-if="!imageUrl" v-html="fmt(current.stem)"></div>
-
-          <div class="q-options compact" v-if="imageUrl && isChoice && current.options && current.options.length">
-            <button v-for="(opt, i) in current.options" :key="'s' + i" class="q-option"
-              :class="{
-                selected: selected === i && !revealed,
-                correct: revealed && i === correctIndex,
-                wrong: revealed && selected === i && i !== correctIndex
-              }"
-              :disabled="revealed" @click="choose(i)" :title="opt">
-              <span class="opt-key">{{ 'ABCDEF'[i] }}</span>
-            </button>
-          </div>
-
-          <div class="q-options" v-if="!imageUrl && isChoice && current.options && current.options.length">
-            <button v-for="(opt, i) in current.options" :key="i" class="q-option"
-              :class="{
-                selected: selected === i && !revealed,
-                correct: revealed && i === correctIndex,
-                wrong: revealed && selected === i && i !== correctIndex
-              }"
-              :disabled="revealed" @click="choose(i)">
-              <span class="opt-key">{{ 'ABCDEF'[i] }}</span>
-              <span class="opt-text" v-html="fmt(opt)"></span>
-              <span class="opt-result" v-if="revealed && i === correctIndex">正确答案</span>
-              <span class="opt-result" v-else-if="revealed && selected === i">你的选择</span>
-            </button>
-          </div>
-
-          <div class="answer-box" v-if="revealed" style="margin-top:20px">
-            <div class="answer-box-head"><Icon name="check-circle" :size="15" /> 参考答案</div>
-            <div class="answer-main" v-html="fmt(current.answer)"></div>
-          </div>
-          <div class="analysis-box" v-if="revealed">
-            <h4><Icon name="spark" :size="14" /> 题目解析</h4>
-            <div class="analysis-text" v-html="para(current.analysis)"></div>
-          </div>
-
-          <div class="self-grade" v-if="revealed && !isChoice && marks[idx] === 'none'">
-            <span>对照答案，这道题你做对了吗？</span>
-            <div class="self-grade-actions">
-              <button class="btn btn-ghost grade-btn ok" @click="selfGrade(true)"><Icon name="check" :size="14" /> 做对了</button>
-              <button class="btn btn-ghost grade-btn bad" @click="selfGrade(false)"><Icon name="x" :size="14" /> 做错了</button>
+    <main class="drill-page" v-if="!finished && total">
+      <div class="drill-frame">
+        <header class="drill-bar">
+          <div class="drill-id">
+            <span class="drill-badge"><Icon name="play" :size="15" /></span>
+            <div class="drill-id-text">
+              <span>DRILL MODE / 专注练习</span>
+              <b>{{ title }}</b>
             </div>
           </div>
-
-          <div class="practice-actions">
-            <span class="practice-hint" v-if="!revealed">{{ isChoice ? '选择你的答案后提交' : '建议先在纸上作答，再查看解析' }}</span>
-            <span class="practice-hint" v-else>{{ isChoice ? (isRight ? '回答正确' : '已自动加入错题本') : (marks[idx] !== 'none' ? '已记录本题结果' : '请标记做对或做错') }}</span>
-            <div style="display:flex;gap:8px">
-              <button class="btn btn-primary" v-if="!revealed && isChoice" @click="submit"><Icon name="check-circle" :size="16" /> 提交答案</button>
-              <button class="btn btn-ghost" v-if="!revealed" @click="reveal"><Icon name="eye" :size="16" /> 查看解析</button>
-              <button class="btn btn-primary" v-if="canNext" @click="next">
-                {{ lastOne ? '完成练习' : '下一题' }} <Icon name="arrow-right" :size="15" />
-              </button>
+          <div class="drill-clocks">
+            <div class="drill-clock"><span>TIME</span><b>{{ elapsedText }}</b></div>
+            <div class="drill-counter">
+              <span class="dc-right">RIGHT <b>{{ rightCount }}</b></span>
+              <span class="dc-wrong">WRONG <b>{{ wrongCount }}</b></span>
             </div>
           </div>
-        </article>
+          <button class="drill-exit" @click="exit"><Icon name="x" :size="14" /> 退出</button>
+        </header>
+
+        <div class="drill-ruler">
+          <div class="ruler-line">
+            <span v-for="(m, i) in marks" :key="i" class="ruler-tick" :class="dotClass(i)"><i></i></span>
+          </div>
+          <div class="ruler-read">
+            <span>ITEM <b>{{ pad(idx + 1) }}</b> <em>/ {{ pad(total) }}</em></span>
+            <span>{{ subjectName }}</span>
+            <span>{{ progressPct }}% MARKED</span>
+          </div>
+        </div>
+
+        <div class="drill-body">
+          <aside class="drill-margin">
+            <div class="drill-qno">
+              <span>QUESTION</span>
+              <b>{{ pad(idx + 1) }}</b>
+            </div>
+            <dl class="drill-meta">
+              <div><dt>科目</dt><dd>{{ current.subjectName }}</dd></div>
+              <div><dt>年份</dt><dd>{{ current.year }}</dd></div>
+              <div><dt>题号</dt><dd>{{ pad(current.indexNo) }}</dd></div>
+              <div><dt>题型</dt><dd>{{ current.typeName }}</dd></div>
+              <div><dt>分值</dt><dd>{{ current.score }} 分</dd></div>
+              <div>
+                <dt>难度</dt>
+                <dd class="drill-diff">
+                  <i v-for="n in 3" :key="n" :class="{ lit: current.difficulty >= n }"></i>
+                  <em>{{ current.difficultyName }}</em>
+                </dd>
+              </div>
+            </dl>
+            <div class="drill-kp">
+              <span>FOCUS</span>
+              <p>{{ current.kpName }}</p>
+            </div>
+            <button class="drill-quit" @click="exit">放弃本组</button>
+          </aside>
+
+          <article class="drill-sheet" v-math>
+            <header class="drill-sheet-head">
+              <span class="drill-type">{{ current.typeName }}</span>
+              <span class="drill-origin">{{ current.year }} · NO.{{ pad(current.indexNo) }} · {{ current.score }} PTS</span>
+            </header>
+
+            <section class="spec-passage" v-if="current.passage">
+              <span class="spec-label">{{ current.passageTitle || '阅读材料' }}</span>
+              <div class="spec-passage-text" v-html="para(current.passage)"></div>
+            </section>
+
+            <section class="spec-shot" v-if="imageUrl">
+              <img :src="imageUrl" alt="原题截图" loading="lazy" />
+              <span class="spec-shot-note">原题截图 · 公式与图形以原卷为准</span>
+            </section>
+
+            <section class="spec-stem" v-if="!imageUrl" v-html="fmt(current.stem)"></section>
+
+            <div class="spec-choices" v-if="imageUrl && isChoice && current.options && current.options.length">
+              <span class="spec-label">OPTIONS</span>
+              <div class="spec-choice-keys">
+                <button v-for="(opt, i) in current.options" :key="'s' + i" class="spec-key"
+                  :class="{
+                    picked: selected === i && !revealed,
+                    'key-correct': revealed && i === correctIndex,
+                    'key-wrong': revealed && selected === i && i !== correctIndex
+                  }"
+                  :disabled="revealed" @click="choose(i)" :title="opt">{{ 'ABCDEF'[i] }}</button>
+              </div>
+            </div>
+
+            <section class="spec-choices" v-if="!imageUrl && isChoice && current.options && current.options.length">
+              <div class="spec-choice" v-for="(opt, i) in current.options" :key="i">
+                <button class="spec-choice-key"
+                  :class="{
+                    picked: selected === i && !revealed,
+                    'key-correct': revealed && i === correctIndex,
+                    'key-wrong': revealed && selected === i && i !== correctIndex
+                  }"
+                  :disabled="revealed" @click="choose(i)">{{ 'ABCDEF'[i] }}</button>
+                <div class="spec-choice-text" v-html="fmt(opt)"></div>
+                <span class="spec-choice-mark" v-if="revealed && i === correctIndex">正确答案</span>
+                <span class="spec-choice-mark wrong-mark" v-else-if="revealed && selected === i">你的选择</span>
+              </div>
+            </section>
+
+            <section class="drill-ref" v-if="revealed">
+              <div class="drill-ref-head">
+                <span class="spec-label">REFERENCE / 参考答案</span>
+                <span class="drill-ref-stamp">UNSEALED</span>
+              </div>
+              <div class="spec-answer" v-html="fmt(current.answer)"></div>
+              <div class="spec-analysis">
+                <span class="spec-label">ANALYSIS / 解析</span>
+                <div class="spec-analysis-text" v-html="para(current.analysis)"></div>
+              </div>
+            </section>
+
+            <div class="drill-grade" v-if="revealed && !isChoice && marks[idx] === 'none'">
+              <span>对照答案，这道题你做对了吗？</span>
+              <div class="drill-grade-actions">
+                <button @click="selfGrade(true)"><Icon name="check" :size="13" /> 做对了</button>
+                <button @click="selfGrade(false)"><Icon name="x" :size="13" /> 做错了</button>
+              </div>
+            </div>
+
+            <footer class="drill-foot">
+              <span class="drill-status" v-if="!revealed">{{ isChoice ? '选择你的答案后提交' : '建议先在纸上作答，再查看解析' }}</span>
+              <span class="drill-status" v-else-if="isChoice">
+                <b :class="isRight ? 'is-ok' : 'is-bad'">{{ isRight ? '回答正确' : '答错，已收进错题本' }}</b>
+              </span>
+              <span class="drill-status" v-else>
+                <b v-if="marks[idx] !== 'none'" class="is-ok">已记录本题结果</b>
+                <b v-else>请标记做对或做错</b>
+              </span>
+              <div class="drill-buttons">
+                <button class="drill-btn primary" v-if="!revealed && isChoice" @click="submit">
+                  提交答案 <Icon name="check-circle" :size="15" />
+                </button>
+                <button class="drill-btn ghost" v-if="!revealed" @click="reveal">
+                  <Icon name="eye" :size="14" /> 查看解析
+                </button>
+                <button class="drill-btn primary" v-if="canNext" @click="next">
+                  {{ lastOne ? '完成练习' : '下一题' }} <Icon name="arrow-right" :size="15" />
+                </button>
+              </div>
+            </footer>
+          </article>
+        </div>
       </div>
     </main>
 
-    <main class="practice-page" v-else-if="finished">
-      <div class="container practice-shell">
-        <div class="practice-result card">
-          <div class="result-badge"><Icon name="award" :size="38" /></div>
-          <h2>本组练习完成</h2>
-          <p>{{ title }} · 共 {{ total }} 题</p>
-          <div class="result-stats">
-            <div class="result-stat"><b>{{ accuracy }}<em>%</em></b><span>正确率</span></div>
-            <div class="result-stat"><b>{{ rightCount }}<em>题</em></b><span>答对</span></div>
-            <div class="result-stat"><b>{{ wrongCount }}<em>题</em></b><span>答错</span></div>
-            <div class="result-stat"><b>{{ durationText(elapsed) }}</b><span>用时</span></div>
+    <main class="drill-page" v-else-if="finished">
+      <div class="report-frame">
+        <header class="report-mast">
+          <div class="report-kicker"><span>PLATE 08</span> DRILL REPORT / 练习记录</div>
+          <h1>本组练习完成</h1>
+          <p>{{ title }} · {{ subjectName }} · 共 {{ total }} 题</p>
+        </header>
+
+        <div class="report-score">
+          <div class="report-acc">
+            <span>ACCURACY</span>
+            <b>{{ accuracy }}<em>%</em></b>
           </div>
-          <div class="result-actions">
-            <button class="btn btn-primary" @click="restart"><Icon name="rotate" :size="15" /> 再刷一遍</button>
-            <button class="btn btn-ghost" @click="go('/wrong-book')"><Icon name="flag" :size="15" /> 去错题本</button>
-            <button class="btn btn-ghost" @click="go('/dashboard/' + (S.lastSubject || 'math1'))"><Icon name="target" :size="15" /> 继续按考点刷</button>
+          <div class="report-cells">
+            <div><span>答对</span><b>{{ rightCount }}</b></div>
+            <div><span>答错</span><b>{{ wrongCount }}</b></div>
+            <div><span>题量</span><b>{{ total }}</b></div>
+            <div><span>用时</span><b>{{ durationText(elapsed) }}</b></div>
           </div>
-          <div class="result-notes">
-            <div class="result-note-row" v-for="(s, i) in summary" :key="s.q.id">
-              <span style="width:22px;color:var(--faint)">{{ i + 1 }}</span>
-              <b>{{ s.q.year }} · {{ s.q.typeName }}</b>
-              <span style="flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">{{ s.q.kpName }}</span>
-              <span :class="s.mark === 'right' ? 'ok' : 'no'">{{ masteryName(s.mark) }}</span>
-              <button class="icon-btn" style="width:26px;height:26px" @click="openQuestion(s.q)"><Icon name="chev-right" :size="14" /></button>
-            </div>
+        </div>
+
+        <div class="report-sheet">
+          <div class="report-head">
+            <span>NO.</span><span>题目</span><span>结果</span><span></span>
           </div>
+          <div class="report-row" v-for="(s, i) in summary" :key="s.q.id">
+            <span class="rr-no">{{ pad(i + 1) }}</span>
+            <span class="rr-title">
+              <b>{{ s.q.kpName }}</b>
+              <em>{{ s.q.year }} · {{ s.q.typeName }} · {{ s.q.score }} 分</em>
+            </span>
+            <span class="rr-mark" :class="s.mark">{{ masteryName(s.mark) }}</span>
+            <button class="rr-open" @click="openQuestion(s.q)" title="打开题目"><Icon name="chev-right" :size="14" /></button>
+          </div>
+        </div>
+
+        <div class="report-actions">
+          <button class="drill-btn primary" @click="restart"><Icon name="rotate" :size="15" /> 再刷一遍</button>
+          <button class="drill-btn ghost" @click="go('/wrong-book')"><Icon name="flag" :size="15" /> 去错题本</button>
+          <button class="drill-btn ghost" @click="go('/dashboard/' + (S.lastSubject || 'math1'))"><Icon name="target" :size="15" /> 继续按考点刷</button>
         </div>
       </div>
     </main>
 
-    <main class="practice-page" v-else>
-      <div class="container practice-shell">
-        <div class="empty-state card">
-          <span class="empty-icon"><Icon name="play" :size="28" /></span>
-          <h3>还没有待练习的题目</h3>
-          <p>去考点页选一个考点，点击「组合练习」生成一组练习。</p>
-          <button class="btn btn-primary" @click="go('/dashboard/math1')">去考点页</button>
-        </div>
+    <main class="drill-page" v-else>
+      <div class="drill-empty">
+        <span class="margin-label">DRILL MODE / NO QUEUE</span>
+        <h1>还没有待练习的题目</h1>
+        <p>去考点页选一个考点，点击「组合练习」生成一组练习。</p>
+        <button class="drill-btn primary" @click="go('/dashboard/math1')">去考点页 <Icon name="arrow-right" :size="15" /></button>
       </div>
     </main>`,
   };

@@ -272,6 +272,9 @@
       viewKey() {
         return this.route.path;
       },
+      focusMode() {
+        return this.route.parts[0] === "practice";
+      },
       pageTitle() {
         const p = this.route.parts;
         if (!p.length) return "研题岛 ATLAS · 考研真题学习地图";
@@ -333,7 +336,7 @@
       window.removeEventListener("keydown", this.onKey);
     },
     template: `
-    <div class="app-root">
+    <div class="app-root" :class="{ 'is-focus': focusMode }">
       <SiteHeader />
       <component :is="viewComp" v-bind="viewProps" :key="viewKey" />
       <SiteFooter />
