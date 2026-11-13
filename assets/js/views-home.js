@@ -15,55 +15,32 @@
       },
       cards() {
         const conf = [
-          {
-            group: "math",
-            subject: "math1",
-            code: "01",
-            title: "数学",
-            en: "MATHEMATICS",
-            desc: "高等数学 · 线性代数 · 概率统计",
-            tone: "clay",
-          },
-          {
-            group: "cs",
-            subject: "cs408",
-            code: "02",
-            title: "408",
-            en: "COMPUTER SCIENCE",
-            desc: "数据结构 · 计算机组成 · 操作系统 · 计算机网络",
-            tone: "sage",
-          },
-          {
-            group: "en",
-            subject: "english1",
-            code: "03",
-            title: "英语",
-            en: "ENGLISH",
-            desc: "完形 · 阅读 · 新题型 · 翻译 · 写作",
-            tone: "slate",
-          },
+          { subjects: ["math2"], subject: "math2", code: "01", title: "数学二", en: "MATHEMATICS II", desc: "高等数学 · 线性代数（不含概率论与级数）", tone: "lime" },
+          { subjects: ["math1", "math3"], subject: "math1", code: "02", title: "数学一 / 三", en: "MATHEMATICS I · III", desc: "高等数学 · 线性代数 · 概率统计", tone: "clay" },
+          { subjects: ["cs408"], subject: "cs408", code: "03", title: "408", en: "COMPUTER SCIENCE", desc: "数据结构 · 计算机组成 · 操作系统 · 计算机网络", tone: "sage" },
+          { subjects: ["english1", "english2"], subject: "english1", code: "04", title: "英语一 / 二", en: "ENGLISH", desc: "完形 · 阅读 · 新题型 · 翻译 · 写作", tone: "slate" },
         ];
         return conf.map((c) => {
-          const group = D.groups[c.group];
           let qs = [];
-          group.subjects.forEach((id) => {
-            qs = qs.concat(U.questionsOf(id));
-          });
+          c.subjects.forEach((id) => { qs = qs.concat(U.questionsOf(id)); });
           const kpSet = {};
           qs.forEach((q) => (kpSet[q.kpId] = true));
           const marked = qs.filter((q) => YT.S.mastery[q.id]).length;
           const years = qs.map((q) => q.year);
+          const papers = c.subjects.reduce((n, id) => n + U.papersOf(id).length, 0);
           return Object.assign({}, c, {
             count: qs.length,
+            papers: papers,
             kp: Object.keys(kpSet).length,
+            available: qs.length > 0,
             coverage: qs.length ? Math.round((marked / qs.length) * 100) : 0,
-            range: years.length ? Math.min.apply(null, years) + "—" + Math.max.apply(null, years) : "—",
-            path: "/dashboard/" + c.subject,
+            range: years.length ? Math.min.apply(null, years) + "—" + Math.max.apply(null, years) : "待导入",
+            path: qs.length ? "/dashboard/" + c.subject : "/import",
           });
         });
       },
       currentSubject() {
-        return U.subjectOf(YT.S.lastSubject) || U.subjectOf("math1");
+        return U.subjectOf(YT.S.lastSubject) || U.subjectOf("math2");
       },
       currentEn() {
         const map = {
@@ -91,7 +68,26 @@
         return D.questions.length;
       },
       kpCount() {
-        return new Set(D.questions.map((q) => q.kpId)).size;
+        return new Set(D.questions.filter((q) => q.real).map((q) => q.kpId)).size;
+      },
+      paperCount() {
+        return (D.papers || []).length;
+      },
+      chapterBars() {
+        const tree = D.groups.math2.tree;
+        const total = U.questionsOf("math2").length || 1;
+        const out = [];
+        tree.forEach((root) => {
+          (root.children || []).forEach((ch) => {
+            const n = U.nodeCount("math2", ch.id);
+            const done = U.questionsForNode("math2", ch.id).filter((q) => YT.S.mastery[q.id]).length;
+            out.push({ id: ch.id, name: ch.name, root: root.name, count: n, done: done, pct: Math.round((n / total) * 100) });
+          });
+        });
+        return out.sort((a, b) => b.count - a.count);
+      },
+      keyedCount() {
+        return D.questions.filter((q) => U.hasKey(q)).length;
       },
       latestYear() {
         return Math.max.apply(null, D.questions.map((q) => q.year));
@@ -114,12 +110,18 @@
           scores[q.year] = (scores[q.year] || 0) + (q.score || 0);
         });
         return U.yearsOf(this.currentSubject.id)
-          .slice(-4)
+          .slice()
           .reverse()
-          .map((y, i) => ({ year: y, count: counts[y] || 0, score: scores[y] || 0, index: String(i + 1).padStart(2, "0") }));
+          .map((y, i) => {
+            const p = U.paperOf(this.currentSubject.id, y);
+            return { year: y, count: counts[y] || 0, score: scores[y] || 0, hasKey: !!(p && p.hasKey), format: p ? p.format : "", index: String(i + 1).padStart(2, "0") };
+          });
       },
       archiveTotal() {
         return U.questionsOf(this.currentSubject.id).length;
+      },
+      archiveYears() {
+        return U.papersOf(this.currentSubject.id).length;
       },
     },
     methods: {
@@ -152,6 +154,25 @@
       openYear(y) {
         this.go("/papers/" + this.currentSubject.id + "?year=" + y);
       },
+      drillChapter(ch) {
+        const qs = U.questionsForNode("math2", ch.id);
+        if (!qs.length) {
+          U.toast("该考点暂无题目");
+          return;
+        }
+        U.startPractice(U.shuffle(qs).map((q) => q.id), {
+          title: "考点专练 · " + ch.name,
+          subject: "math2",
+          subjectName: "数学二",
+          mode: "chapter",
+        });
+      },
+      latestPaper() {
+        const ps = U.papersOf(this.currentSubject.id);
+        if (!ps.length) return;
+        const y = Math.max.apply(null, ps.map((p) => p.year));
+        this.openYear(y);
+      },
     },
     template: `
     <main class="home atlas-home">
@@ -159,25 +180,25 @@
         <div class="hero-copy">
           <div class="hero-kicker">
             <span class="kicker-dot"></span>
-            <span>{{ studyYear }} 考研 · 学习地图系统</span>
-            <em>ED. 01</em>
+            <span>{{ studyYear }} 考研 · 数学二真题地图</span>
+            <em>REAL PAPERS</em>
           </div>
           <h1>把真题，<br />变成你的<span class="hero-mark">地形图</span><i>。</i></h1>
-          <p class="hero-lead">按考点给每道题一个坐标。看清重点、盲区和自己的位置，再决定下一步往哪走。</p>
+          <p class="hero-lead">2010–2023 共 14 套数学二真题原卷，逐题精切为 319 道题目并落到考点坐标上。看清重点、盲区和自己的位置，再决定下一步往哪走。</p>
           <div class="hero-actions">
             <button class="btn btn-primary btn-lg" @click="go('/dashboard/' + currentSubject.id)">
               进入考点地图 <Icon name="arrow-right" :size="17" />
             </button>
-            <button class="btn btn-ghost btn-lg" @click="go('/import')">
-              <Icon name="upload" :size="16" /> 导入我的 PDF
+            <button class="btn btn-ghost btn-lg" @click="latestPaper">
+              <Icon name="calendar" :size="16" /> 打开 {{ latestYear }} 年整卷
             </button>
           </div>
           <div class="hero-metrics">
-            <div><b>{{ questionCount }}</b><span>道示例题</span></div>
+            <div><b>{{ questionCount }}</b><span>道真题</span></div>
+            <i></i>
+            <div><b>{{ paperCount }}</b><span>套原卷</span></div>
             <i></i>
             <div><b>{{ kpCount }}</b><span>个考点</span></div>
-            <i></i>
-            <div><b>{{ D.subjects.length }}</b><span>个科目</span></div>
             <i></i>
             <div><b>{{ latestYear }}</b><span>最新年份</span></div>
           </div>
@@ -233,27 +254,53 @@
             <span class="section-kicker">01 / TERRAIN</span>
             <h2>选择你的地形</h2>
           </div>
-          <p class="section-note">三套知识系统，按考点密度重新组织。<br />从最想攻克的一块开始。</p>
+          <p class="section-note">数学二已收录真题原卷，其余科目可自行导入。<br />从最想攻克的一块开始。</p>
         </header>
 
         <div class="terrain-list">
-          <a v-for="card in cards" :key="card.group" class="terrain-row" :class="'tone-' + card.tone" :href="'#' + card.path" @click.prevent="go(card.path)">
+          <a v-for="card in cards" :key="card.subject" class="terrain-row" :class="['tone-' + card.tone, { 'is-pending': !card.available }]" :href="'#' + card.path" @click.prevent="go(card.path)">
             <span class="terrain-index">{{ card.code }}</span>
             <div class="terrain-name">
               <h3>{{ card.title }}</h3>
               <em>{{ card.en }}</em>
             </div>
             <p class="terrain-desc">{{ card.desc }}</p>
-            <div class="terrain-count">
+            <div class="terrain-count" v-if="card.available">
               <b>{{ card.count }}</b>
-              <span>题 · {{ card.kp }} 个考点</span>
+              <span>题 · {{ card.papers }} 套 · {{ card.kp }} 考点</span>
             </div>
-            <div class="terrain-progress">
+            <div class="terrain-count pending" v-else>
+              <b>—</b>
+              <span>尚未收录</span>
+            </div>
+            <div class="terrain-progress" v-if="card.available">
               <div><span :style="{ width: card.coverage + '%' }"></span></div>
               <small>{{ card.coverage }}% 已标记 <i>·</i> {{ card.range }}</small>
             </div>
+            <div class="terrain-progress pending" v-else>
+              <small><Icon name="upload" :size="12" /> 上传 PDF 即可建立这个科目的题库</small>
+            </div>
             <span class="terrain-go"><Icon name="arrow-right" :size="19" /></span>
           </a>
+        </div>
+      </section>
+
+      <section class="home-section container">
+        <header class="section-head">
+          <div class="section-title">
+            <span class="section-kicker">02 / DENSITY</span>
+            <h2>考点出题密度</h2>
+          </div>
+          <p class="section-note">14 套原卷里每个章节出现过多少道题。<br />点一条，立刻抽这个考点的题开练。</p>
+        </header>
+        <div class="density-grid">
+          <button v-for="ch in chapterBars" :key="ch.id" class="density-row" @click="drillChapter(ch)">
+            <span class="dens-name"><b>{{ ch.name }}</b><em>{{ ch.root }}</em></span>
+            <span class="dens-bar"><i :style="{ width: Math.max(4, ch.pct * 4) + '%' }"></i></span>
+            <span class="dens-num"><b>{{ ch.count }}</b><em>题 · {{ ch.pct }}%</em></span>
+            <span class="dens-done" :class="{ on: ch.done }">{{ ch.done ? '已标记 ' + ch.done : '未开始' }}</span>
+            <Icon name="play" :size="14" />
+          </button>
         </div>
       </section>
 
@@ -261,7 +308,7 @@
         <div class="year-archive">
           <header class="section-head section-head-sm">
             <div class="section-title">
-              <span class="section-kicker">02 / ARCHIVE</span>
+              <span class="section-kicker">03 / ARCHIVE</span>
               <h2>年份档案</h2>
             </div>
             <button class="section-link" @click="openYears">全部年份 <Icon name="arrow-right" :size="14" /></button>
@@ -271,15 +318,17 @@
               <span class="year-index">{{ band.index }}</span>
               <span class="year-year">{{ band.year }}</span>
               <span class="year-info">{{ band.count }} 题 · {{ band.score }} 分</span>
+              <span class="year-fmt">{{ band.format }}</span>
+              <span class="year-key" :class="{ on: band.hasKey }">{{ band.hasKey ? '附答案' : '无官方答案' }}</span>
               <span class="year-go"><Icon name="chev-right" :size="16" /></span>
             </a>
           </div>
-          <p class="archive-note"><span></span>当前归档：{{ currentSubject.name }} · 共 {{ archiveTotal }} 题 · {{ yearBands.length }} 个年份</p>
+          <p class="archive-note"><span></span>当前归档：{{ currentSubject.name }} · 共 {{ archiveTotal }} 题 · {{ archiveYears }} 套原卷 · {{ keyedCount }} 题附官方答案</p>
         </div>
 
         <aside class="workbench">
           <header class="workbench-head">
-            <span class="section-kicker">03 / WORKBENCH</span>
+            <span class="section-kicker">04 / WORKBENCH</span>
             <h2>操作台</h2>
             <p>把今天要做的动作，压到一次点击。</p>
           </header>
@@ -288,6 +337,12 @@
               <span class="work-icon"><Icon name="upload" :size="17" /></span>
               <span class="work-text"><b>导入 PDF</b><em>浏览器内拆题、标注题型</em></span>
               <span class="work-tag">LOCAL</span>
+              <Icon name="arrow-right" :size="15" />
+            </button>
+            <button class="work-row" @click="latestPaper">
+              <span class="work-icon"><Icon name="calendar" :size="17" /></span>
+              <span class="work-text"><b>{{ latestYear }} 年整卷</b><em>按原卷顺序完整做一遍</em></span>
+              <span class="work-tag">150 分</span>
               <Icon name="arrow-right" :size="15" />
             </button>
             <button class="work-row" @click="go('/assembly')">
@@ -312,7 +367,7 @@
         </aside>
       </section>
 
-      <p class="home-footnote container"><span>ATLAS NOTE</span> 站内题目为原创示例内容，用于展示考点统计、刷题、PDF 拆题与组卷流程。所有学习数据只保存在当前浏览器。</p>
+      <p class="home-footnote container"><span>ATLAS NOTE</span> 题目影像来自 2010–2023 年数学二真题原卷，按题号逐题精切；考点归类与难度为本站教研标注。仅 2020 年原卷附有官方参考答案，其余年份提供「我的作答 + 自查」流程，不编造答案。所有学习数据只保存在当前浏览器。</p>
     </main>`,
   };
 })();

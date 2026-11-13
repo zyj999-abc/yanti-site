@@ -31,7 +31,7 @@
       type: "solution",
       match: ["solution", "proof"],
       count: 6,
-      scores: [10, 10, 10, 10, 15, 15],
+      scores: [10, 12, 12, 12, 12, 12],
     },
   ];
   const TEMPLATES = {
@@ -639,7 +639,7 @@
     return out.replace(/\s+/g, " ").trim();
   }
 
-  const OPT_RE = /(?:^|[\s　])([A-D])\s*[.．、)]\s*/g;
+  const OPT_RE = /(?:^|[\s　（(])([A-D])\s*[.．、)）]\s*/g;
   function extractOptions(lines) {
     const found = {};
     let firstLine = -1;
@@ -653,7 +653,7 @@
         matches.push({ label: m[1], start: m.index + m[0].length, at: m.index });
       }
       if (!matches.length) return;
-      if (matches.length < 2 && !/^\s*[A-D]\s*[.．、)]/.test(text)) return;
+      if (matches.length < 2 && !/^\s*[（(]?\s*[A-D]\s*[.．、)）]/.test(text)) return;
       if (firstLine < 0) {
         firstLine = li;
         firstPrefix = text.slice(0, matches[0].at).trim();
@@ -778,6 +778,46 @@
     "e-write": ["写作", "essay", "write", "letter", "composition"],
   };
 
+  /* 数学二专用关键词表（对应内置 m2-* 考点树，不含概率论 / 级数 / 空间解析几何） */
+  const M2_KP_KEYWORDS = {
+    "m2-c1-1": ["求极限", "lim", "洛必达", "夹逼", "趋于", "极限存在", "极限为"],
+    "m2-c1-2": ["无穷小", "阶最高", "高阶", "同阶", "等价无穷小", "阶的比较"],
+    "m2-c1-3": ["连续", "间断点", "可去间断", "跳跃间断", "第一类间断"],
+    "m2-c1-4": ["数列", "xn", "递推", "单调有界"],
+    "m2-c1-6": ["泰勒", "麦克劳林", "展开式", "皮亚诺"],
+    "m2-c2-1": ["导数", "微分", "求导", "切线", "法线", "可导", "dy", "变化率", "速率", "cm/s"],
+    "m2-c2-2": ["参数方程", "隐函数", "二阶导数", "由方程"],
+    "m2-c2-3": ["单调", "极值", "极小值", "极大值", "最值", "最小值", "最大值", "驻点", "拐点", "凹", "凸"],
+    "m2-c2-4": ["渐近线", "斜渐近线", "水平渐近线", "铅直渐近线", "曲率", "曲率半径"],
+    "m2-c2-5": ["中值定理", "罗尔", "拉格朗日", "柯西中值", "证明", "存在ξ", "不等式", "求证"],
+    "m2-c2-6": ["零点", "根的个数", "实根", "方程根", "取值范围"],
+    "m2-c3-1": ["不定积分", "原函数", "换元", "分部积分", "定积分", "积分值"],
+    "m2-c3-2": ["反常积分", "广义积分", "收敛", "无穷区间"],
+    "m2-c3-3": ["变限积分", "积分上限", "积分方程", "变上限"],
+    "m2-c3-4": ["面积", "旋转体", "体积", "弧长", "绕x轴", "绕y轴"],
+    "m2-c3-5": ["做功", "压力", "抽水", "细杆", "引力", "质心", "形心"],
+    "m2-c3-6": ["积分中值", "积分不等式", "比较大小", "积分性质"],
+    "m2-c4-1": ["偏导数", "全微分", "dz", "偏导"],
+    "m2-c4-2": ["复合函数求导", "隐函数", "链式法则", "抽象函数"],
+    "m2-c4-3": ["条件极值", "拉格朗日乘数", "多元函数极值", "驻点"],
+    "m2-c5-1": ["二重积分", "积分区域", "累次积分"],
+    "m2-c5-2": ["极坐标", "交换积分次序", "交换次序", "改变积分次序"],
+    "m2-c6-1": ["一阶", "微分方程", "齐次方程", "可分离变量", "伯努利"],
+    "m2-c6-2": ["可降阶", "y''", "降阶"],
+    "m2-c6-3": ["常系数", "特征方程", "通解", "特解", "非齐次"],
+    "m2-c6-4": ["冷却", "增长率", "人口", "存留量", "微分方程应用"],
+    "m2-l1-1": ["行列式", "余子式", "代数余子式"],
+    "m2-l2-1": ["逆矩阵", "矩阵运算", "可逆", "A-1", "转置"],
+    "m2-l2-2": ["秩", "初等变换", "初等矩阵", "r(A)"],
+    "m2-l2-3": ["伴随矩阵", "A*"],
+    "m2-l3-1": ["线性相关", "线性无关", "线性表示", "向量组", "极大无关组"],
+    "m2-l3-2": ["线性方程组", "基础解系", "通解", "无解", "无穷多解"],
+    "m2-l4-1": ["特征值", "特征向量"],
+    "m2-l4-2": ["相似", "对角化", "可对角化", "相似对角"],
+    "m2-l5-1": ["二次型", "标准形", "规范形", "惯性指数", "正交变换"],
+    "m2-l5-2": ["正定", "正定二次型", "顺序主子式"],
+  };
+
   function isKpAllowed(id, subject) {
     if (!subject) return true;
     if (subject === "math2") return id.indexOf("m-prob") !== 0 && id.indexOf("m-calc-6") !== 0 && id.indexOf("m-calc-8") !== 0;
@@ -819,6 +859,21 @@
     }
     if (group === "math" && q.type === "proof") return "m-calc-2-3";
     const hay = (q.stem + " " + (q.options || []).join(" ")).toLowerCase();
+    if (group === "math2") {
+      let b = "";
+      let bs = 0;
+      Object.keys(M2_KP_KEYWORDS).forEach((id) => {
+        if (!allowed[id]) return;
+        let sc = 0;
+        M2_KP_KEYWORDS[id].forEach((kw) => {
+          if (hay.indexOf(kw.toLowerCase()) >= 0) sc += kw.length >= 3 ? 3 : 2;
+        });
+        if (sc > bs) { bs = sc; b = id; }
+      });
+      if (b) return b;
+      if (q.type === "proof") return allowed["m2-c2-5"] ? "m2-c2-5" : Object.keys(allowed)[0];
+      return Object.keys(allowed)[0] || "m2-c1-1";
+    }
     let best = "";
     let bestScore = 0;
     Object.keys(KP_KEYWORDS).forEach((id) => {
@@ -838,7 +893,6 @@
       if (q.type === "application") return list[0] || "c-ds-1";
       return list[0] || "c-ds-1";
     }
-    if (subject === "math2") return "m-calc-1-1";
     return list[0] || "m-calc-1-1";
   }
 

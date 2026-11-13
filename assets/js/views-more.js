@@ -25,7 +25,7 @@
     },
     computed: {
       subject() {
-        return U.subjectOf(this.subjectId) || U.subjectOf("math1");
+        return U.subjectOf(this.subjectId) || U.subjectOf("math2");
       },
       years() {
         return U.yearsOf(this.subject.id);
@@ -73,6 +73,36 @@
         const g = U.groupOf(this.subject.id);
         return g ? g.subjects : [this.subject.id];
       },
+      available() {
+        return this.allYearQuestions.length > 0;
+      },
+      paper() {
+        return U.paperOf(this.subject.id, this.selectedYear);
+      },
+      fullTitle() {
+        return U.paperFullTitle(this.subject.id, this.selectedYear);
+      },
+      hasKey() {
+        return this.yearQuestions.some((q) => U.hasKey(q));
+      },
+      keyedCount() {
+        return this.yearQuestions.filter((q) => U.hasKey(q)).length;
+      },
+      sectionGroups() {
+        const order = ["choice", "blank", "solution", "proof", "application"];
+        const map = {};
+        this.yearQuestions.forEach((q) => {
+          (map[q.type] = map[q.type] || []).push(q);
+        });
+        return Object.keys(map)
+          .sort((a, b) => order.indexOf(a) - order.indexOf(b))
+          .map((t) => ({
+            type: t,
+            name: TYPE_NAMES[t] || t,
+            items: map[t],
+            score: map[t].reduce((n, q) => n + q.score, 0),
+          }));
+      },
     },
     watch: {
       subjectId() {
@@ -115,12 +145,18 @@
           mode: "paper",
         });
       },
-      printPaper() {
+      printPaper(withAnswers) {
         YT.printPaper({
-          title: this.subject.name + " · " + this.selectedYear + " 年真题（示例）",
-          subtitle: "研题岛 ATLAS · 共 " + this.yearQuestions.length + " 题 · 满分 " + this.totalScore + " 分",
+          title: this.fullTitle,
+          subtitle: "研题岛 ATLAS · 共 " + this.yearQuestions.length + " 题 · 满分 " + this.totalScore + " 分 · 考试时间 " + (this.paper ? this.paper.duration : 180) + " 分钟",
           questions: this.yearQuestions,
-          answers: false,
+          answers: !!withAnswers,
+        });
+      },
+      startSection(g) {
+        U.startPractice(g.items.map((q) => q.id), {
+          title: this.selectedYear + " 年 " + this.subject.name + " · " + g.name + "专项",
+          subject: this.subject.id, subjectName: this.subject.name, mode: "section",
         });
       },
       yearShift(d) {
@@ -137,11 +173,13 @@
           <div class="plate-title">
             <span class="plate-kicker">BOUND VOLUMES / {{ subject.name }}</span>
             <h1>年份档案</h1>
-            <p>{{ allYearQuestions.length }} 道真题 · {{ years.length }} 个年份 · 按原卷题号编排</p>
+            <p v-if="available">{{ allYearQuestions.length }} 道真题 · {{ U.papersOf(subject.id).length }} 套原卷 · 按原卷题号编排</p>
+            <p v-else>{{ subject.name }} 尚未收录真题，导入 PDF 后即可按年份归档</p>
           </div>
           <div class="plate-actions">
-            <button class="btn btn-ghost" @click="printPaper"><Icon name="printer" :size="15" /> 打印试卷</button>
-            <button class="btn btn-primary" @click="startFull"><Icon name="play" :size="15" /> 整卷练习</button>
+            <button class="btn btn-ghost" v-if="available" @click="printPaper(false)"><Icon name="printer" :size="15" /> 打印试卷</button>
+            <button class="btn btn-primary" v-if="available" @click="startFull"><Icon name="play" :size="15" /> 整卷练习</button>
+            <button class="btn btn-primary" v-else @click="go('/import')"><Icon name="upload" :size="15" /> 导入真题 PDF</button>
           </div>
         </header>
 
@@ -154,7 +192,17 @@
           <span class="terrain-switch-note">整卷模拟，也可以单题精刷</span>
         </div>
 
-        <div class="year-ribbon" role="tablist" aria-label="选择年份">
+        <section class="plate-empty" v-if="!available">
+          <span class="pe-stamp">NO VOLUME FILED</span>
+          <h2>{{ subject.name }} 还没有年份档案</h2>
+          <p>本站已内置 2010–2023 年数学二真题原卷，共 14 套。其他科目上传真题 PDF、完成拆题与考点分配后，会自动按年份归档到这里。</p>
+          <div class="pe-actions">
+            <button class="btn btn-primary" @click="go('/import')"><Icon name="upload" :size="15" /> 去导入 PDF</button>
+            <button class="btn btn-ghost" @click="go('/papers/math2')"><Icon name="calendar" :size="15" /> 查看数学二年份档案</button>
+          </div>
+        </section>
+
+        <div class="year-ribbon" v-if="available" role="tablist" aria-label="选择年份">
           <button v-for="(y, i) in years.slice().reverse()" :key="y" class="year-cell" :class="{ active: y === selectedYear }" @click="chooseYear(y)">
             <span class="yc-index">{{ pad(years.length - i) }}</span>
             <b>{{ y }}</b>
@@ -162,35 +210,47 @@
           </button>
         </div>
 
-        <div class="paper-desk">
+        <div class="paper-desk" v-if="available">
           <aside class="paper-spec">
             <div class="spec-year">{{ selectedYear }}</div>
-            <p class="spec-en">NATIONAL ENTRANCE EXAMINATION / SAMPLE</p>
+            <p class="spec-en">NATIONAL ENTRANCE EXAMINATION / ORIGINAL PAPER</p>
             <dl class="spec-list">
               <div><dt>科目</dt><dd>{{ subject.name }}</dd></div>
               <div><dt>题量</dt><dd>{{ yearQuestions.length }} 题</dd></div>
               <div><dt>满分</dt><dd>{{ totalScore }} 分</dd></div>
               <div><dt>题型</dt><dd>{{ typesInYear.join(' / ') || '—' }}</dd></div>
               <div><dt>已掌握</dt><dd>{{ answeredCount }} 题</dd></div>
+              <div><dt>卷型</dt><dd>{{ paper ? paper.format : '—' }}</dd></div>
+              <div><dt>时长</dt><dd>{{ paper ? paper.duration : 180 }} 分钟</dd></div>
+              <div><dt>答案</dt><dd :class="{ 'spec-alert': !hasKey }">{{ hasKey ? keyedCount + ' 题附官方答案' : '原卷未附答案' }}</dd></div>
             </dl>
+            <div class="spec-structure" v-if="paper">
+              <span class="spec-struct-label">STRUCTURE / 卷面结构</span>
+              <div class="spec-struct-row" v-for="sec in paper.sections" :key="sec.type">
+                <b>{{ sec.name }}</b>
+                <em>{{ sec.count }} × {{ sec.each }} 分</em>
+                <i>{{ sec.score }} 分</i>
+              </div>
+            </div>
             <div class="spec-actions">
               <button class="btn btn-primary" @click="startFull"><Icon name="play" :size="14" /> 整卷练习</button>
-              <button class="btn btn-ghost" @click="printPaper"><Icon name="printer" :size="14" /> 打印</button>
+              <button class="btn btn-ghost" @click="printPaper(false)"><Icon name="printer" :size="14" /> 打印空白卷</button>
+              <button class="btn btn-ghost" v-if="hasKey" @click="printPaper(true)"><Icon name="file" :size="14" /> 打印含答案</button>
             </div>
             <div class="spec-shift">
               <button :disabled="!prevYear" @click="yearShift(-1)"><Icon name="chev-left" :size="13" /> {{ prevYear || '—' }}</button>
               <button :disabled="!nextYear" @click="yearShift(1)">{{ nextYear || '—' }} <Icon name="chev-right" :size="13" /></button>
             </div>
-            <p class="spec-note">示例卷：按年份与题号编排，用于演示整卷刷题与打印流程。</p>
+            <p class="spec-note">{{ hasKey ? '本卷原卷附有官方参考答案，开卷后可直接核对。' : '本卷原卷只含试题。开卷后进入「我的作答 + 自查」流程，本站不编造答案。' }}</p>
           </aside>
 
           <section class="paper-sheet">
             <header class="paper-sheet-head">
               <div>
-                <span class="ps-kicker">PAPER SPECIMEN / {{ subject.name }}</span>
-                <h2>{{ selectedYear }} 年全国硕士研究生招生考试<br />{{ subject.name }}（示例卷）</h2>
+                <span class="ps-kicker">ORIGINAL PAPER / {{ subject.name }}</span>
+                <h2>{{ selectedYear }} 年全国硕士研究生招生考试<br />{{ subject.name }}</h2>
               </div>
-              <div class="ps-stamp"><b>{{ selectedYear }}</b><span>ATLAS · SAMPLE</span><em>{{ yearQuestions.length }} Q / {{ totalScore }} P</em></div>
+              <div class="ps-stamp"><b>{{ selectedYear }}</b><span>ATLAS · ORIGINAL</span><em>{{ yearQuestions.length }} Q / {{ totalScore }} P</em></div>
             </header>
 
             <div class="paper-meta-line">
@@ -206,7 +266,7 @@
                 <span>点击题号直接进入单题</span>
               </header>
               <div class="score-grid" v-if="yearQuestions.length">
-                <a v-for="q in yearQuestions" :key="q.id" class="score-cell" :class="{ done: S.mastery[q.id] }" :href="'#/question/' + q.id" @click.prevent="openQuestion(q)" :title="q.typeName + ' · ' + q.kpName">
+                <a v-for="q in yearQuestions" :key="q.id" class="score-cell" :class="{ done: S.mastery[q.id] }" :href="'#/question/' + q.id" @click.prevent="openQuestion(q)" :title="q.typeName + ' · ' + U.qTitle(q)">
                   <b>{{ pad(q.indexNo) }}</b>
                   <span>{{ q.typeName.slice(0, 2) }}</span>
                 </a>
@@ -219,15 +279,30 @@
               </div>
             </section>
 
+            <section class="paper-sections">
+              <header class="sheet-subhead">
+                <span class="ps-kicker">02 / SECTIONS</span>
+                <span>按大题分块专项训练</span>
+              </header>
+              <div class="section-strip">
+                <button v-for="g in sectionGroups" :key="g.type" class="section-card" @click="startSection(g)">
+                  <span class="sc-name">{{ g.name }}</span>
+                  <b>{{ g.items.length }}</b>
+                  <em>题 · {{ g.score }} 分</em>
+                  <span class="sc-go"><Icon name="play" :size="13" /> 专项练习</span>
+                </button>
+              </div>
+            </section>
+
             <section class="paper-ledger">
               <header class="sheet-subhead">
-                <span class="ps-kicker">02 / QUESTION LEDGER</span>
+                <span class="ps-kicker">03 / QUESTION LEDGER</span>
                 <button class="sheet-link" @click="startFull"><Icon name="play" :size="12" /> 从第 1 题开始</button>
               </header>
               <div class="paper-q-list" v-if="yearQuestions.length">
                 <a v-for="q in yearQuestions" :key="q.id" class="paper-q-row" :href="'#/question/' + q.id" @click.prevent="openQuestion(q)">
                   <span class="pq-no">{{ pad(q.indexNo) }}</span>
-                  <span class="pq-main"><b>{{ q.kpName }}</b><span>{{ q.typeName }} · {{ q.score }} 分 · {{ q.difficultyName }}</span></span>
+                  <span class="pq-main"><b>{{ U.qTitle(q) }}</b><span>{{ q.kpName }} · {{ q.score }} 分 · {{ q.difficultyName }}</span></span>
                   <span class="pq-section">{{ q.typeName }}</span>
                   <span class="pq-mark" v-if="S.mastery[q.id]">已掌握</span>
                   <span class="pq-mark empty" v-else>—</span>
@@ -275,7 +350,7 @@
           if (f.subject !== "all" && q.subject !== f.subject) return false;
           if (f.type !== "all" && q.type !== f.type) return false;
           if (k) {
-            const hay = (q.stem + " " + q.kpName + " " + q.year).toLowerCase();
+            const hay = (U.qTitle(q) + " " + q.stem + " " + q.kpName + " " + q.year).toLowerCase();
             if (hay.indexOf(k) < 0) return false;
           }
           return true;
@@ -378,7 +453,7 @@
             <option value="all">全部题型</option>
             <option v-for="t in typeFilterOptions" :key="t" :value="t">{{ typeNames[t] }}</option>
           </select></label>
-          <label class="log-search"><span>检索</span><input class="bare-input" v-model="filters.keyword" placeholder="题干 / 考点 / 年份" /></label>
+          <label class="log-search"><span>检索</span><input class="bare-input" v-model="filters.keyword" placeholder="题目 / 考点 / 年份" /></label>
           <button class="log-reset" v-if="filters.subject !== 'all' || filters.type !== 'all' || filters.keyword" @click="resetFilters">清除筛选</button>
           <span class="log-count">{{ filtered.length }} ENTRIES</span>
         </div>
@@ -398,7 +473,11 @@
                   <span>{{ q.year }} 年 第 {{ q.indexNo }} 题</span><i>·</i>
                   <span>{{ q.kpName }}</span>
                 </div>
-                <a :href="'#/question/' + q.id" @click.prevent="openQuestion(q)" class="cr-stem" v-html="U.fmt(q.stem)"></a>
+                <a :href="'#/question/' + q.id" @click.prevent="openQuestion(q)" class="cr-stem">
+                  <b>{{ U.qTitle(q) }}</b>
+                  <img v-if="q.image" :src="q.image" :alt="U.qTitle(q)" loading="lazy" class="cr-thumb" />
+                  <span v-else-if="q.stem" v-html="U.fmt(q.stem)"></span>
+                </a>
                 <div class="cr-tags">
                   <span>{{ q.typeName }}</span><i>·</i>
                   <span>{{ q.difficultyName }}</span>
@@ -421,7 +500,7 @@
             <p>{{ allItems.length ? '换一个科目或题型试试。' : (tab === 'fav' ? '刷题时点击题目右上角的星标，就能把好题收进来。' : '答错的题会自动进入这里；也可以手动标记，方便集中回刷。') }}</p>
             <div class="ce-actions">
               <button class="btn btn-ghost" v-if="allItems.length" @click="resetFilters">清除筛选</button>
-              <button class="btn btn-primary" v-else @click="go('/dashboard/math1')">去刷题</button>
+              <button class="btn btn-primary" v-else @click="go('/dashboard/math2')">去刷题</button>
             </div>
           </div>
         </section>
@@ -435,9 +514,9 @@
 
   /* ================= Assembly ================= */
   const PAPER_TYPE_OPTIONS = [
+    { value: "math2", label: "数学二 · 2026 标准卷" },
     { value: "free", label: "自由组卷（按题型/考点）" },
     { value: "math1", label: "数学一 · 最新标准卷" },
-    { value: "math2", label: "数学二 · 最新标准卷" },
     { value: "math3", label: "数学三 · 最新标准卷" },
     { value: "cs408", label: "408 · 最新标准卷" },
     { value: "english1", label: "英语一 · 最新标准卷" },
@@ -458,8 +537,8 @@
         typeNames: YT.typeNames || TYPE_NAMES,
         paperTypes: PAPER_TYPE_OPTIONS,
         diffFilters: DIFF_FILTERS,
-        paperType: "free",
-        subjectId: "math1",
+        paperType: "math2",
+        subjectId: "math2",
         checkedKps: [],
         types: ["choice", "blank", "solution", "proof"],
         year: "all",
@@ -484,8 +563,11 @@
       subjectOptions() {
         return D.subjects;
       },
+      subjectPoolCount() {
+        return this.effectiveSubject ? U.questionsOf(this.effectiveSubject).length : D.questions.length;
+      },
       group() {
-        return this.subject ? this.subject.group : "math";
+        return this.subject ? this.subject.group : "math2";
       },
       freeTypeOptions() {
         if (this.group === "en") return ["choice", "cloze", "read", "newtype", "translate", "writing", "solution"];
@@ -614,6 +696,9 @@
         return D.questions.filter((q) => q.imported).length;
       },
     },
+    mounted() {
+      if (this.template && this.subjectPoolCount) this.generate(true);
+    },
     watch: {
       paperType(v) {
         const tpl = YT.templateFor(v);
@@ -622,6 +707,7 @@
         this.preview = [];
         this.generated = false;
         if (v !== "free") this.year = "all";
+        if (tpl && this.subjectPoolCount) this.$nextTick(() => this.generate(true));
       },
       subjectId() {
         this.checkedKps = [];
@@ -633,10 +719,15 @@
       difficulty() {
         this.preview = [];
         this.generated = false;
+        if (this.template && this.subjectPoolCount) this.generate(true);
       },
       source() {
         this.preview = [];
         this.generated = false;
+        if (this.template && this.subjectPoolCount) this.generate(true);
+      },
+      year() {
+        if (this.template && this.subjectPoolCount) this.generate(true);
       },
     },
     methods: {
@@ -718,7 +809,7 @@
         });
         return { items: items, looseCount: looseCount };
       },
-      generate() {
+      generate(silent) {
         if (this.template) {
           const res = this.buildStandard();
           if (!res.items.length) {
@@ -731,7 +822,7 @@
           let msg = "已按 " + this.template.name + " 生成 " + res.items.length + " 题";
           if (missing > 0) msg += "，有 " + missing + " 个题型题库不足";
           else if (res.looseCount) msg += "，部分题目放宽了难度";
-          U.toast(msg);
+          if (!silent) U.toast(msg);
           return;
         }
         if (!this.pool.length) {
@@ -741,7 +832,7 @@
         const picked = U.shuffle(this.pool).slice(0, this.takeCount);
         this.preview = picked.map((q) => ({ id: q.id, score: q.score, section: "", sectionName: "" }));
         this.generated = true;
-        U.toast("已生成 " + picked.length + " 道题的试卷");
+        if (!silent) U.toast("已生成 " + picked.length + " 道题的试卷");
       },
       removePreview(i) {
         this.preview.splice(i, 1);
@@ -784,7 +875,7 @@
           return;
         }
         YT.printPaper({
-          title: (this.title.trim() || this.defaultTitle) + "（示例）",
+          title: this.title.trim() || this.defaultTitle,
           subtitle:
             "研题岛 ATLAS · 共 " +
             this.preview.length +
@@ -813,6 +904,10 @@
       plain(s) {
         return U.plain(s);
       },
+      jumpProof() {
+        const el = document.querySelector(".assembly-proof");
+        if (el) el.scrollIntoView({ behavior: "smooth", block: "start" });
+      },
       sectionName(key) {
         const sec = this.template && this.template.sections.find((x) => x.key === key);
         return sec ? sec.name : "";
@@ -826,12 +921,18 @@
           <div class="plate-title">
             <span class="plate-kicker">DRAFTING TABLE / 2026 SYLLABUS</span>
             <h1>组卷台</h1>
-            <p>按最新考研题型结构拼整卷，或按考点自由抽题；支持易 / 中 / 难筛选</p>
+            <p>按 2026 考研题型结构从 319 道数学二真题中拼整卷，或按考点自由抽题；支持易 / 中 / 难筛选</p>
           </div>
           <div class="plate-actions">
             <button class="btn btn-ghost" @click="go('/import')"><Icon name="upload" :size="15" /> 导入 PDF</button>
           </div>
         </header>
+
+        <button class="proof-jump" v-if="preview.length" @click="jumpProof">
+          <span><Icon name="file" :size="14" /> 校样已就绪</span>
+          <b>{{ preview.length }} 题 · {{ previewScore }} 分</b>
+          <Icon name="chev-down" :size="15" />
+        </button>
 
         <div class="assembly-desk">
           <aside class="assembly-spec">
@@ -852,7 +953,7 @@
               <div class="spec-field">
                 <label>科目</label>
                 <select class="bare-select" v-model="subjectId" :disabled="!!template">
-                  <option v-for="s in subjectOptions" :key="s.id" :value="s.id">{{ s.name }}</option>
+                  <option v-for="s in subjectOptions" :key="s.id" :value="s.id">{{ s.name }}（{{ U.questionsOf(s.id).length }} 题）</option>
                   <option v-if="!template" value="all">全科混合</option>
                 </select>
                 <span class="spec-hint" v-if="importedCount">题库含 {{ importedCount }} 道 PDF 导入题</span>
@@ -889,8 +990,8 @@
               <div class="spec-field">
                 <label>题源</label>
                 <select class="bare-select" v-model="source">
-                  <option value="all">全部题目（内置 + 导入）</option>
-                  <option value="builtin">仅内置示例题</option>
+                  <option value="all">全部题目（真题 + 导入）</option>
+                  <option value="builtin">仅内置真题原卷</option>
                   <option value="imported">仅我导入的 PDF 题</option>
                 </select>
               </div>
@@ -946,8 +1047,8 @@
 
             <div class="spec-submit">
               <p v-if="!template">当前条件 <b>{{ pool.length }}</b> 道可用 · 抽取 {{ takeCount }} 道</p>
-              <p v-else>标准卷 {{ template.sections.reduce((a,s)=>a+s.count,0) }} 个题位 · 总分 {{ template.total }} 分</p>
-              <button class="btn btn-primary btn-block" @click="generate"><Icon name="spark" :size="15" /> 生成试卷</button>
+              <p v-else>标准卷 {{ template.sections.reduce((a,s)=>a+s.count,0) }} 个题位 · 总分 {{ template.total }} 分 · 题库 {{ subjectPoolCount }} 题</p>
+              <button class="btn btn-primary btn-block" @click="generate(false)"><Icon name="spark" :size="15" /> 生成试卷</button>
             </div>
           </aside>
 
@@ -984,10 +1085,11 @@
                 <div class="proof-row" v-for="row in group.items" :key="row.q.id">
                   <span class="pr-no">{{ pad(row.index + 1) }}</span>
                   <span class="pr-main">
-                    <b>{{ row.q.kpName }}</b>
-                    <span>{{ row.q.year }} 年 · {{ row.q.typeName }} · {{ row.it.score != null ? row.it.score : row.q.score }} 分</span>
+                    <b>{{ U.qTitle(row.q) }}</b>
+                    <span>{{ row.q.year }} 年第 {{ row.q.indexNo }} 题 · {{ row.q.kpName }} · {{ row.it.score != null ? row.it.score : row.q.score }} 分</span>
                   </span>
                   <span class="pr-loose" v-if="row.it.loose">难度放宽</span>
+                  <a class="pr-open" :href="'#/question/' + row.q.id" target="_blank" rel="noopener" title="查看原题"><Icon name="eye" :size="13" /></a>
                   <button class="pr-remove" title="移除此题" @click="removePreview(row.index)"><Icon name="x" :size="13" /></button>
                 </div>
               </section>
@@ -997,8 +1099,11 @@
               <div class="pe-cross" aria-hidden="true"><i></i><i></i><span></span></div>
               <span class="ps-kicker">NO PROOF YET / 待生成</span>
               <h3>校样还是空白</h3>
-              <p>{{ template ? '题库越足，标准卷越完整；缺题时先导入对应科目的 PDF。' : '条件越具体，组出来的卷子越贴近你的薄弱点。' }}</p>
-              <button class="proof-action" @click="go('/import')"><Icon name="upload" :size="13" /> 去导入题库</button>
+              <p>{{ template ? '数学二标准卷共 22 个题位，从 14 套原卷 319 道真题中抽取。点左侧「生成试卷」出校样。' : '条件越具体，组出来的卷子越贴近你的薄弱点。' }}</p>
+              <div class="pe-btns">
+                <button class="proof-action primary" @click="generate(false)"><Icon name="spark" :size="13" /> 立即生成</button>
+                <button class="proof-action" @click="go('/import')"><Icon name="upload" :size="13" /> 导入更多题库</button>
+              </div>
             </div>
 
             <section class="proof-records" v-if="S.papers.length">
@@ -1067,6 +1172,10 @@
           { key: 3, label: "不会", count: this.masteryCounts[3], color: "#e0483a" },
         ].map((x) => Object.assign({}, x, { pct: Math.round((x.count / t) * 100) }));
       },
+      coveragePct() {
+        const total = D.questions.length || 1;
+        return Math.round((Object.keys(S.mastery).length / total) * 100);
+      },
       subjectStats() {
         const m = {};
         S.practice.forEach((p) => {
@@ -1110,6 +1219,7 @@
           favorites: S.favorites,
           mastery: S.mastery,
           notes: S.notes,
+          answers: S.answers,
           comments: S.comments,
           practice: S.practice,
           papers: S.papers,
@@ -1209,6 +1319,8 @@
                 <div><span>累计答题</span><b>{{ answeredTotal }}</b><em>QUESTIONS</em></div>
                 <div><span>平均正确率</span><b>{{ avgAccuracy }}</b><em>PERCENT</em></div>
                 <div><span>错题本</span><b>{{ S.wrong.length }}</b><em>TO REVISIT</em></div>
+                <div><span>自记作答</span><b>{{ Object.keys(S.answers).length }}</b><em>MY ANSWERS</em></div>
+                <div><span>题库覆盖</span><b>{{ coveragePct }}</b><em>PERCENT</em></div>
               </div>
             </section>
 
@@ -1239,7 +1351,7 @@
                 <button @click="clearPractice"><span>清空练习记录</span><em>保留错题</em><Icon name="rotate" :size="12" /></button>
                 <button class="danger" @click="resetAll"><span>清空全部本地数据</span><em>不可恢复</em><Icon name="trash" :size="12" /></button>
               </div>
-              <p class="record-note">本站为纯静态演示：没有账号系统，也不会上传任何数据。清除浏览器缓存会同时丢失这些记录。</p>
+              <p class="record-note">本站为纯静态站点：没有账号系统，也不会上传任何数据。清除浏览器缓存会同时丢失这些记录。</p>
             </section>
           </aside>
 
@@ -1262,7 +1374,7 @@
               <div class="record-empty" v-else>
                 <span class="ps-kicker">NO SESSIONS YET</span>
                 <p>还没有练习记录，去考点页刷一组吧。</p>
-                <button class="proof-action" @click="go('/dashboard/math1')">开始刷题</button>
+                <button class="proof-action" @click="go('/dashboard/math2')">开始刷题</button>
               </div>
             </section>
 
@@ -1313,10 +1425,11 @@
         U: U,
         routes: [
           { no: "01", name: "总览", path: "/" },
-          { no: "02", name: "题库", path: "/papers" },
-          { no: "03", name: "组卷", path: "/assembly" },
-          { no: "04", name: "导入", path: "/import" },
-          { no: "05", name: "错题", path: "/wrong-book" }
+          { no: "02", name: "考点地图", path: "/dashboard/math2" },
+          { no: "03", name: "年份档案", path: "/papers/math2" },
+          { no: "04", name: "组卷", path: "/assembly" },
+          { no: "05", name: "导入", path: "/import" },
+          { no: "06", name: "错题", path: "/wrong-book" }
         ]
       };
     },
@@ -1338,7 +1451,7 @@
             <p class="void-note">这个地址没有被归档，可能是链接过期、拼写有误，或者这一页已经被抽出卷宗。</p>
             <div class="void-actions">
               <button class="btn btn-primary" @click="U.go('/')">回到总览</button>
-              <button class="btn btn-ghost" @click="U.go('/papers')">去题库</button>
+              <button class="btn btn-ghost" @click="U.go('/papers/math2')">去年份档案</button>
             </div>
           </div>
         </div>

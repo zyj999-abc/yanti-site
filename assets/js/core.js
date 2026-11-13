@@ -127,8 +127,9 @@
     Object.keys(qBySubject).forEach((k) => delete qBySubject[k]);
     Object.keys(qById).forEach((k) => delete qById[k]);
     D.questions.forEach((q) => {
+      if (q.type === "fill") q.type = "blank";
       q.kpName = kpName(q.kpId);
-      if (q.group === "math" && !q.imported) {
+      if ((q.group === "math" || q.group === "math2") && !q.imported && !q.real) {
         if (q.options && q.options.length) q.options = q.options.map(wrapMath);
         q.answer = wrapMath(q.answer);
       }
@@ -173,9 +174,40 @@
     for (let y = min; y <= max; y++) out.push(y);
     return out;
   }
+  const paperBySubject = {};
+  (D.papers || []).forEach((p) => {
+    (p.sections || []).forEach((sec) => { if (sec.type === "fill") sec.type = "blank"; });
+    (paperBySubject[p.subject] = paperBySubject[p.subject] || []).push(p);
+  });
+  function papersOf(subject) {
+    return paperBySubject[subject] || [];
+  }
+  function paperOf(subject, year) {
+    return papersOf(subject).find((p) => p.year === Number(year)) || null;
+  }
+  function qTitle(q) {
+    if (!q) return "";
+    if (q.title) return q.title;
+    const t = plain(q.stem || q.passage || "");
+    return t.length > 42 ? t.slice(0, 42) + "…" : t || q.kpName || "未命名题目";
+  }
+  /* 官方答案是否存在（真题原卷附页 / 导入答案） */
+  function hasKey(q) {
+    if (!q) return false;
+    return !!(q.answerImage || (q.answer && String(q.answer).trim()) || (q.answerIndex != null && q.answerIndex >= 0));
+  }
+  const CHOICE_KEYS = ["A", "B", "C", "D", "E", "F"];
+  function choiceKeys(q) {
+    const n = q && q.options && q.options.length ? q.options.length : q && q.type === "choice" ? 4 : 0;
+    return CHOICE_KEYS.slice(0, n);
+  }
+
   function paperFullTitle(subjectId, year) {
     const s = subjectMap[subjectId];
     if (!s) return year + " 年真题";
+    const p = paperOf(subjectId, year);
+    if (p && p.title) return p.title;
+    if (s.group === "math2") return year + " 年全国硕士研究生招生考试 数学（二）";
     if (s.group === "math") {
       return year + " 年全国硕士研究生招生考试 数学（" + s.name.slice(-1) + "）";
     }
@@ -213,7 +245,8 @@
     papers: [],
     comments: {},
     notes: {},
-    lastSubject: "math1",
+    answers: {},
+    lastSubject: "math2",
   };
   function loadState() {
     try {
@@ -231,6 +264,8 @@
       if (typeof out.mastery !== "object" || Array.isArray(out.mastery)) out.mastery = {};
       if (typeof out.comments !== "object" || Array.isArray(out.comments)) out.comments = {};
       if (typeof out.notes !== "object" || Array.isArray(out.notes)) out.notes = {};
+      if (typeof out.answers !== "object" || Array.isArray(out.answers)) out.answers = {};
+      if (!subjectMap[out.lastSubject]) out.lastSubject = "math2";
       return out;
     } catch (e) {
       return JSON.parse(JSON.stringify(defaults));
@@ -262,7 +297,7 @@
     }
   }
   Vue.watch(
-    () => [S.user, S.wrong, S.mastery, S.favorites, S.practice, S.papers, S.comments, S.notes, S.lastSubject],
+    () => [S.user, S.wrong, S.mastery, S.favorites, S.practice, S.papers, S.comments, S.notes, S.answers, S.lastSubject],
     saveState,
     { deep: true }
   );
@@ -333,6 +368,14 @@
     if (text && text.trim()) S.notes[id] = text;
     else delete S.notes[id];
   }
+  /* 用户自记答案（无官方答案年份的自查记录） */
+  function saveAnswer(id, text) {
+    if (text && String(text).trim()) S.answers[id] = { text: String(text), at: Date.now() };
+    else delete S.answers[id];
+  }
+  function myAnswer(id) {
+    return S.answers[id] || null;
+  }
 
   function addPractice(record) {
     S.practice.unshift(record);
@@ -370,6 +413,8 @@
     for (let i = 0; i < D.questions.length; i++) {
       const q = D.questions[i];
       const hay = (
+        (q.title || "") +
+        " " +
         q.stem +
         " " +
         q.analysis +
@@ -394,7 +439,9 @@
   /* ---------------- imported question images ---------------- */
   const imgLoading = {};
   function imageUrl(q) {
-    if (!q || !q.imageId) return "";
+    if (!q) return "";
+    if (q.image) return q.image;
+    if (!q.imageId) return "";
     if (S.imageUrls[q.id]) return S.imageUrls[q.id];
     if (imgLoading[q.id]) return "";
     imgLoading[q.id] = true;
@@ -513,7 +560,7 @@
         return (S.user.name || "研").slice(0, 1);
       },
       lastSubject() {
-        return S.lastSubject || "math1";
+        return S.lastSubject || "math2";
       },
       isHome() {
         return S.route.path === "/";
@@ -554,7 +601,7 @@
       pageContext() {
         const p = S.route.parts;
         if (!p.length) return { code: "01", en: "OVERVIEW", title: "学习总览" };
-        const subjectId = p[1] || S.lastSubject || "math1";
+        const subjectId = p[1] || S.lastSubject || "math2";
         const subj = D.subjects.find((s) => s.id === subjectId);
         const sname = subj ? subj.name : "题库";
         if (p[0] === "dashboard") return { code: "02", en: "SYLLABUS MAP", title: sname + " · 考点地图" };
@@ -668,7 +715,7 @@
             </a>
             <div class="mobile-drawer-sub">
               <a href="#/profile" @click.prevent="go('/profile')"><Icon name="user" :size="16" />{{ S.user.name || '本地学习档案' }}</a>
-              <a href="#/papers/math1" @click.prevent="go('/papers/' + lastSubject)"><Icon name="calendar" :size="16" />年份试卷</a>
+              <a href="#/papers/math2" @click.prevent="go('/papers/' + lastSubject)"><Icon name="calendar" :size="16" />年份试卷</a>
             </div>
             <p class="mobile-drawer-note"><i></i>学习数据只保存在本机浏览器</p>
           </div>
@@ -695,14 +742,14 @@
           <div><b>研题岛 <em>ATLAS</em></b><span>每一道题，都有它的坐标。</span></div>
         </div>
         <nav class="footer-nav" aria-label="页脚导航">
-          <a href="#/dashboard/math1" @click.prevent="go('/dashboard/math1')">数学</a>
-          <a href="#/dashboard/cs408" @click.prevent="go('/dashboard/cs408')">408</a>
-          <a href="#/dashboard/english1" @click.prevent="go('/dashboard/english1')">英语</a>
-          <a href="#/papers/math1" @click.prevent="go('/papers/math1')">年份</a>
+          <a href="#/dashboard/math2" @click.prevent="go('/dashboard/math2')">考点地图</a>
+          <a href="#/papers/math2" @click.prevent="go('/papers/math2')">年份档案</a>
           <a href="#/assembly" @click.prevent="go('/assembly')">组卷</a>
+          <a href="#/import" @click.prevent="go('/import')">PDF 导入</a>
+          <a href="#/wrong-book" @click.prevent="go('/wrong-book')">错题本</a>
         </nav>
         <div class="footer-meta">
-          <p>纯前端学习工具 · 原创示例内容</p>
+          <p>2010–2023 数学二真题原卷 · 319 道逐题精切</p>
           <p>错题、笔记与练习记录只存于当前浏览器。</p>
         </div>
       </div>
@@ -728,6 +775,8 @@
     isWrong: isWrong, toggleWrong: toggleWrong, addWrong: addWrong, removeWrong: removeWrong,
     isFav: isFav, toggleFav: toggleFav, setMastery: setMastery,
     addComment: addComment, saveNote: saveNote, addPractice: addPractice, savePaper: savePaper,
+    saveAnswer: saveAnswer, myAnswer: myAnswer,
+    papersOf: papersOf, paperOf: paperOf, qTitle: qTitle, hasKey: hasKey, choiceKeys: choiceKeys,
     startPractice: startPractice, readQueue: readQueue, searchQuestions: searchQuestions,
     renderMath: renderMath,
   };

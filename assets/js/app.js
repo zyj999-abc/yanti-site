@@ -12,6 +12,7 @@
     const list = paper.questions || [];
     const imageUrls = {};
     const jobs = list.map((q) => {
+      if (q.image) { imageUrls[q.id] = q.image; return Promise.resolve(); }
       if (!q.imageId || !YT.importStore) return Promise.resolve();
       return YT.importStore
         .getImage(q.imageId)
@@ -28,8 +29,9 @@
         html += '<div class="print-q">';
         html +=
           '<div class="print-q-head">' +
-          (i + 1) + ". " + U.esc(q.typeName) + "（" + q.score + " 分） · " + U.esc(q.kpName) +
-          "</div>";
+          (i + 1) + ". " + U.esc(q.typeName) + "（" + q.score + " 分） · " + U.esc(U.qTitle(q)) +
+          "</div>" +
+          '<div class="print-q-meta">' + U.esc(q.year + " 年 第 " + q.indexNo + " 题 · " + q.kpName + " · " + q.difficultyName) + "</div>";
         if (q.passage) html += '<div class="passage-text">' + U.para(q.passage) + "</div>";
         if (imageUrls[q.id]) {
           html += '<img class="print-shot" src="' + imageUrls[q.id] + '" alt="原题截图" />';
@@ -44,7 +46,17 @@
           }
         }
         if (paper.answers) {
-          html += '<div class="print-answer"><b>答案：</b>' + U.esc(q.answer) + "</div>";
+          if (U.hasKey(q)) {
+            let a = "";
+            if (q.answerIndex != null && q.answerIndex >= 0) a = "ABCDEF"[q.answerIndex];
+            else if (q.answer) a = q.answer;
+            html += '<div class="print-answer"><b>参考答案：</b>' + U.fmt(a) + "</div>";
+            if (q.answerImage) html += '<img class="print-shot print-answer-shot" src="' + q.answerImage + '" alt="原卷参考答案" />';
+            if (q.analysis) html += '<div class="print-analysis"><b>解析：</b>' + U.para(q.analysis) + "</div>";
+          } else {
+            html += '<div class="print-answer print-nokey"><b>参考答案：</b>本卷原卷未附官方答案，请对照教材核对。</div>';
+            html += '<div class="print-work"><b>我的作答：</b><span></span><span></span><span></span></div>';
+          }
         }
         html += "</div>";
       });
@@ -74,7 +86,7 @@
   /* ---------- search overlay ---------- */
   const SearchOverlay = {
     data() {
-      return { S: S, D: D, keyword: "", hot: ["极限", "特征值", "二叉树", "TCP", "概率", "作文"], U: U };
+      return { S: S, D: D, keyword: "", hot: ["函数极限", "二重积分", "特征值", "微分方程", "渐近线", "2023"], U: U };
     },
     computed: {
       results() {
@@ -105,7 +117,7 @@
         return U.plain(s).slice(0, 110);
       },
       typeName(t) {
-        return { choice: "选择题", blank: "填空题", solution: "解答题", proof: "证明题" }[t] || "题目";
+        return { choice: "选择题", fill: "填空题", blank: "填空题", solution: "解答题", proof: "证明题" }[t] || "题目";
       },
     },
     template: `
@@ -113,7 +125,7 @@
       <div class="search-panel" role="dialog" aria-label="搜索题目">
         <div class="search-bar">
           <Icon name="search" :size="19" />
-          <input ref="input" v-model="keyword" placeholder="搜索题干、考点、年份…" @keyup.esc="close" @keyup.enter="openFirst" />
+          <input ref="input" v-model="keyword" placeholder="搜索题目、考点、年份…" @keyup.esc="close" @keyup.enter="openFirst" />
           <button class="search-close" @click="close">ESC</button>
         </div>
         <div class="search-tips" v-if="!keyword.trim()">
@@ -131,7 +143,7 @@
                   <span>{{ typeName(q.type) }}</span>
                   <span>{{ q.kpName }}</span>
                 </div>
-                <div class="sr-stem">{{ plain(q.stem) || q.kpName }}</div>
+                <div class="sr-stem">{{ U.qTitle(q) }}</div>
               </div>
               <Icon name="chev-right" :size="15" style="color:#d8ccbb;flex:none;margin-top:4px" />
             </a>
@@ -187,10 +199,10 @@
           <button class="icon-btn" @click="close"><Icon name="x" :size="17" /></button>
         </div>
         <h3>进入研题岛</h3>
-        <p>本站是纯静态演示站，没有服务器与账号体系。设置一个本地昵称即可使用全部功能，数据只保存在当前浏览器。</p>
+        <p>本站是纯静态站点，没有服务器与账号体系。设置一个本地昵称即可使用全部功能，学习数据只保存在当前浏览器。</p>
         <div class="field">
           <label>你的昵称</label>
-          <input ref="name" class="text-input" v-model="name" maxlength="12" placeholder="例如：冲刺 408" style="width:100%;height:42px" @keyup.enter="save" />
+          <input ref="name" class="text-input" v-model="name" maxlength="12" placeholder="例如：冲刺数二" style="width:100%;height:42px" @keyup.enter="save" />
         </div>
         <button class="btn btn-primary btn-block btn-lg login-btn" @click="save"><Icon name="user" :size="16" /> 进入研题岛</button>
         <button class="btn btn-ghost btn-block" style="margin-top:8px" @click="guest">先随便看看</button>
@@ -264,8 +276,8 @@
       },
       viewProps() {
         const p = this.route.parts;
-        if (p[0] === "dashboard") return { subjectId: p[1] || S.lastSubject || "math1" };
-        if (p[0] === "papers") return { subjectId: p[1] || S.lastSubject || "math1" };
+        if (p[0] === "dashboard") return { subjectId: p[1] || S.lastSubject || "math2" };
+        if (p[0] === "papers") return { subjectId: p[1] || S.lastSubject || "math2" };
         if (p[0] === "question") return { questionId: p[1] || "" };
         return {};
       },
@@ -288,7 +300,7 @@
         }
         if (p[0] === "question") {
           const q = D.questions.find((x) => x.id === p[1]);
-          return q ? q.kpName + " · " + q.year + " 年真题 · 研题岛 ATLAS" : "题目详情 · 研题岛 ATLAS";
+          return q ? U.qTitle(q) + " · " + q.year + " 年真题 · 研题岛 ATLAS" : "题目详情 · 研题岛 ATLAS";
         }
         if (p[0] === "practice") return "组合练习 · 研题岛 ATLAS";
         if (p[0] === "wrong-book") return "错题本 · 研题岛 ATLAS";

@@ -53,14 +53,15 @@
     props: { subjectId: String },
     data() {
       return {
-        D: D, S: S, activeType: "all", visible: 14, drawerOpen: false, startOpen: false,
+        D: D, S: S, U: U, activeType: "all", visible: 14, drawerOpen: false, startOpen: false,
         startCount: 10, startTypes: ["choice", "blank", "solution", "proof"],
         openMap: {}, selectedKp: "",
+        sortMode: "year", diffFilter: 0, onlyUnmarked: false, ledgerQuery: "",
       };
     },
     computed: {
       subject() {
-        return U.subjectOf(this.subjectId) || U.subjectOf("math1");
+        return U.subjectOf(this.subjectId) || U.subjectOf("math2");
       },
       group() {
         return this.subject ? D.groups[this.subject.group] : null;
@@ -121,9 +122,34 @@
           { id: "proof", name: "证明题", count: this.typeCounts.proof },
         ];
       },
+      available() {
+        return this.qAll.length > 0;
+      },
       filtered() {
-        if (this.activeType === "all") return this.nodeQuestions;
-        return this.nodeQuestions.filter((q) => q.type === this.activeType);
+        let list = this.activeType === "all" ? this.nodeQuestions.slice() : this.nodeQuestions.filter((q) => q.type === this.activeType);
+        if (this.diffFilter) list = list.filter((q) => q.difficulty === this.diffFilter);
+        if (this.onlyUnmarked) list = list.filter((q) => !S.mastery[q.id]);
+        const k = this.ledgerQuery.trim().toLowerCase();
+        if (k) list = list.filter((q) => (U.qTitle(q) + " " + q.kpName + " " + q.year).toLowerCase().indexOf(k) >= 0);
+        if (this.sortMode === "year") list.sort((a, b) => b.year - a.year || a.indexNo - b.indexNo);
+        else if (this.sortMode === "old") list.sort((a, b) => a.year - b.year || a.indexNo - b.indexNo);
+        else if (this.sortMode === "hard") list.sort((a, b) => b.difficulty - a.difficulty || b.year - a.year);
+        else if (this.sortMode === "easy") list.sort((a, b) => a.difficulty - b.difficulty || b.year - a.year);
+        return list;
+      },
+      diffCounts() {
+        const c = { 1: 0, 2: 0, 3: 0 };
+        this.nodeQuestions.forEach((q) => (c[q.difficulty] = (c[q.difficulty] || 0) + 1));
+        return c;
+      },
+      unmarkedCount() {
+        return this.nodeQuestions.filter((q) => !S.mastery[q.id]).length;
+      },
+      markedCount() {
+        return this.nodeQuestions.filter((q) => !!S.mastery[q.id]).length;
+      },
+      keyedCount() {
+        return this.nodeQuestions.filter((q) => U.hasKey(q)).length;
       },
       visibleQuestions() {
         return this.filtered.slice(0, this.visible);
@@ -188,7 +214,13 @@
       selectedKp() {
         this.activeType = "all";
         this.visible = 14;
+        this.ledgerQuery = "";
       },
+      activeType() { this.visible = 14; },
+      diffFilter() { this.visible = 14; },
+      onlyUnmarked() { this.visible = 14; },
+      sortMode() { this.visible = 14; },
+      ledgerQuery() { this.visible = 14; },
     },
     mounted() {
       if (this.subject) S.lastSubject = this.subject.id;
@@ -247,6 +279,29 @@
         this.activeType = id;
         this.visible = 14;
       },
+      setDiff(n) {
+        this.diffFilter = this.diffFilter === n ? 0 : n;
+      },
+      resetFilters() {
+        this.activeType = "all";
+        this.diffFilter = 0;
+        this.onlyUnmarked = false;
+        this.ledgerQuery = "";
+        this.sortMode = "year";
+        this.visible = 14;
+      },
+      hasFilters() {
+        return this.activeType !== "all" || !!this.diffFilter || this.onlyUnmarked || !!this.ledgerQuery.trim();
+      },
+      startFromFiltered() {
+        const ids = this.filtered.map((q) => q.id);
+        if (!ids.length) return U.toast("当前筛选下没有题目");
+        S.lastSubject = this.subject.id;
+        U.startPractice(ids, {
+          title: this.selectedNode.name + " · 筛选练习（" + ids.length + " 题）",
+          subject: this.subject.id, subjectName: this.subject.name, mode: "filter",
+        });
+      },
       loadMore() {
         this.visible += 14;
       },
@@ -290,11 +345,13 @@
           <div class="plate-title">
             <span class="plate-kicker">KNOWLEDGE FIELD / {{ subjectCode(subject.id) }}</span>
             <h1>考点地图</h1>
-            <p>{{ subject.name }} · {{ qAll.length }} 道真题 · {{ years.length }} 个年份归档</p>
+            <p v-if="available">{{ subject.name }} · {{ qAll.length }} 道真题 · {{ U.papersOf(subject.id).length }} 套原卷 · {{ years.length }} 个年份归档</p>
+            <p v-else>{{ subject.name }} · 尚未收录真题，导入 PDF 后这里会自动生成考点地图</p>
           </div>
           <div class="plate-actions">
             <button class="btn btn-ghost" @click="goPapers"><Icon name="calendar" :size="15" /> 年份档案</button>
-            <button class="btn btn-primary" @click="openStart"><Icon name="spark" :size="15" /> 组合练习</button>
+            <button class="btn btn-primary" v-if="available" @click="openStart"><Icon name="spark" :size="15" /> 组合练习</button>
+            <button class="btn btn-primary" v-else @click="go('/import')"><Icon name="upload" :size="15" /> 导入真题 PDF</button>
           </div>
         </header>
 
@@ -312,7 +369,22 @@
           <span>{{ nodeQuestions.length }} 题 <Icon name="chev-down" :size="15" /></span>
         </button>
 
-        <div class="dash-sheet">
+        <section class="plate-empty" v-if="!available">
+          <span class="pe-stamp">NO ARCHIVE YET</span>
+          <h2>{{ subject.name }} 还没有真题</h2>
+          <p>本站已内置 2010–2023 年数学二真题原卷。其他科目需要你自己上传真题 PDF：解析、分题型、分配考点后即可在此生成考点地图，并参与组卷与练习。</p>
+          <div class="pe-actions">
+            <button class="btn btn-primary" @click="go('/import')"><Icon name="upload" :size="15" /> 去导入 PDF</button>
+            <button class="btn btn-ghost" @click="switchSubject('math2')"><Icon name="target" :size="15" /> 先看数学二考点地图</button>
+          </div>
+          <ul class="pe-steps">
+            <li><i>01</i><span>上传真题 PDF，浏览器内逐页渲染</span></li>
+            <li><i>02</i><span>框选题目区域，指定题型与分值</span></li>
+            <li><i>03</i><span>分配考点，入库后长期保存在本机</span></li>
+          </ul>
+        </section>
+
+        <div class="dash-sheet" v-else>
           <aside class="dash-index">
             <header class="index-head">
               <div><span>INDEX / 考点索引</span><b>目录</b></div>
@@ -370,6 +442,10 @@
                 <span>SHARE / 题库占比</span>
                 <b>{{ stats.totalPct }}</b><em>%</em>
               </div>
+              <div class="fs-cell">
+                <span>PROGRESS / 已标记</span>
+                <b>{{ markedCount }}</b><em>/ {{ nodeQuestions.length }} 题</em>
+              </div>
               <div class="fs-note">
                 <span>ARCHIVE RANGE</span>
                 <b>{{ years[0] }}—{{ latestYear }}</b>
@@ -409,7 +485,7 @@
                     <small>{{ s.pct }}%</small>
                   </li>
                 </ul>
-                <p class="type-foot">共 {{ nodeQuestions.length }} 题 · 按题型归档</p>
+                <p class="type-foot">共 {{ nodeQuestions.length }} 题 · 其中 {{ keyedCount }} 题附官方答案</p>
               </section>
             </div>
 
@@ -422,6 +498,29 @@
                 </div>
                 <span class="ledger-count">SHOWING {{ visibleQuestions.length }} / {{ filtered.length }}</span>
               </div>
+              <div class="ledger-filters">
+                <label class="ledger-search">
+                  <Icon name="search" :size="14" />
+                  <input v-model="ledgerQuery" placeholder="在本考点内搜索题目…" />
+                  <button v-if="ledgerQuery" class="ls-clear" @click="ledgerQuery = ''" aria-label="清空"><Icon name="x" :size="12" /></button>
+                </label>
+                <div class="diff-chips">
+                  <button class="diff-chip" :class="{ on: diffFilter === 1 }" @click="setDiff(1)">易 <i>{{ diffCounts[1] }}</i></button>
+                  <button class="diff-chip" :class="{ on: diffFilter === 2 }" @click="setDiff(2)">中 <i>{{ diffCounts[2] }}</i></button>
+                  <button class="diff-chip" :class="{ on: diffFilter === 3 }" @click="setDiff(3)">难 <i>{{ diffCounts[3] }}</i></button>
+                </div>
+                <button class="ledger-toggle" :class="{ on: onlyUnmarked }" @click="onlyUnmarked = !onlyUnmarked">
+                  <Icon name="target" :size="13" /> 只看未标记 <i>{{ unmarkedCount }}</i>
+                </button>
+                <select class="ledger-sort" v-model="sortMode" aria-label="排序">
+                  <option value="year">年份 新→旧</option>
+                  <option value="old">年份 旧→新</option>
+                  <option value="hard">难度 难→易</option>
+                  <option value="easy">难度 易→难</option>
+                </select>
+                <button class="ledger-reset" v-if="hasFilters()" @click="resetFilters">重置</button>
+                <button class="ledger-drill" @click="startFromFiltered"><Icon name="play" :size="13" /> 练这 {{ filtered.length }} 题</button>
+              </div>
               <div class="ledger-columns" aria-hidden="true">
                 <span>NO.</span><span>YEAR</span><span>ITEM / 题目</span><span>TYPE</span><span></span>
               </div>
@@ -430,8 +529,8 @@
                   <span class="lr-no">{{ pad(q.indexNo) }}</span>
                   <span class="lr-year">{{ q.year }}</span>
                   <span class="lr-main">
-                    <b>{{ q.kpName }}</b>
-                    <span>{{ q.typeName }} · {{ q.score }} 分 · {{ q.difficultyName }}<i class="lr-done" v-if="S.mastery[q.id]">已标记</i></span>
+                    <b>{{ U.qTitle(q) }}</b>
+                    <span>{{ q.kpName }} · {{ q.score }} 分 · {{ q.difficultyName }}<i class="lr-key" v-if="U.hasKey(q)">附答案</i><i class="lr-done" v-if="S.mastery[q.id]">已标记</i><i class="lr-err" v-if="S.wrong.indexOf(q.id) >= 0">错题</i></span>
                   </span>
                   <span class="lr-type">{{ q.typeName }}</span>
                   <span class="lr-go"><Icon name="arrow-right" :size="15" /></span>
@@ -439,8 +538,8 @@
               </div>
               <div class="ledger-empty" v-else>
                 <span class="le-mark">—</span>
-                <div><b>这个筛选下还没有题目</b><p>换一个题型，或回到「全部」看看。</p></div>
-                <button class="btn btn-ghost btn-sm" @click="setType('all')">查看全部题型</button>
+                <div><b>这个筛选下还没有题目</b><p>放宽题型、难度或搜索词，再试一次。</p></div>
+                <button class="btn btn-ghost btn-sm" @click="resetFilters">重置全部筛选</button>
               </div>
               <div class="ledger-more" v-if="filtered.length > visible">
                 <button class="btn btn-ghost btn-sm" @click="loadMore">加载更多 · 还有 {{ filtered.length - visible }} 题 <Icon name="chev-down" :size="14" /></button>
